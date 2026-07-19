@@ -1,27 +1,29 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirTypeOperatorCallChecker
-import org.jetbrains.kotlin.fir.expressions.FirTypeOperatorCall
-import org.jetbrains.kotlin.fir.expressions.FirOperation
-import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
-import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
+import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.references.toResolvedVariableSymbol
-import org.jetbrains.kotlin.fir.types.*
-import org.jetbrains.kotlin.name.ClassId
-import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.fir.symbols.SymbolInternals
+import org.jetbrains.kotlin.fir.types.FirResolvedTypeRef
 
 object UnionTypeTypeOperatorCallChecker : FirTypeOperatorCallChecker(MppCheckerKind.Common) {
 
-    private val UNION_TYPE_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.UnionType"))
-
-    override fun check(expression: FirTypeOperatorCall, context: CheckerContext, reporter: DiagnosticReporter) {
+    @OptIn(SymbolInternals::class)
+    context(context: CheckerContext, reporter: DiagnosticReporter)
+    override fun check(expression: FirTypeOperatorCall) {
         val operation = expression.operation
         if (operation != FirOperation.AS && operation != FirOperation.SAFE_AS) return
+        val declaration = expression.toResolvedCallableSymbol(context.session)?.fir ?: return
+
+        val unionBuilder = UnionConeType.builder(
+            declaration = declaration,
+        )
 
         val operand = expression.argument
         val operandVariableSymbol = (operand as? FirQualifiedAccessExpression)
@@ -29,44 +31,39 @@ object UnionTypeTypeOperatorCallChecker : FirTypeOperatorCallChecker(MppCheckerK
             ?.toResolvedVariableSymbol()
             ?: return
 
-        val operandTypeRef = operandVariableSymbol.resolvedReturnTypeRef
-        val unionTypeAnnotation = operandTypeRef.annotations.find {
-            it.annotationTypeRef.coneType.classId == UNION_TYPE_ANNOTATION_CLASS_ID
-        } ?: return
+        val targetType = unionBuilder(operandVariableSymbol.resolvedReturnTypeRef.coneType)
+        val castTargetType = (expression.conversionTypeRef as? FirResolvedTypeRef)?.coneType?.let { unionBuilder(it) } ?: return
 
-        val allowedTypesArgument = unionTypeAnnotation.argumentMapping.mapping.values.firstOrNull()
-                as? FirVarargArgumentsExpression ?: return
-        
-        val allowedTypes: List<ConeKotlinType> = allowedTypesArgument.arguments.mapNotNull { kclassReference ->
-            (kclassReference.resolvedType.typeArguments.firstOrNull() as? ConeKotlinTypeProjection)?.type
-        }
-
-        val targetType = (expression.conversionTypeRef as? FirResolvedTypeRef)?.coneType ?: return
-
-        val isTargetTypeInUnion = allowedTypes.any { allowedType ->
-            targetType.isSubtypeOf(allowedType, context.session) || allowedType.isSubtypeOf(targetType, context.session)
-        }
+        val matches = targetType.isCompatible(castTargetType)
 
         when (operation) {
             FirOperation.AS -> {
-                if (!isTargetTypeInUnion) {
-                    val errorMessage = "Cast will always fail: type ${targetType.renderReadable()} is not part of the union type."
-                    reporter.reportOn(expression.conversionTypeRef.source, UnionTypeErrors.CAST_WILL_ALWAYS_FAIL, errorMessage, context)
-                } else if (allowedTypes.size > 1) {
-                    val otherTypes = allowedTypes.filter { !it.isSubtypeOf(targetType, context.session) }.joinToString { it.renderReadable() }
+                if (!matches) {
+                    reporter.reportOn(
+                        source = expression.conversionTypeRef.source,
+                        factory = UnionTypeErrors.CAST_WILL_ALWAYS_FAIL,
+                        a = castTargetType to context
+                    )
+                } else if (targetType.fullyResolvedUnion.size > 1) {
+                    val otherTypes = targetType.fullyResolvedUnionWrapped.filter { !it.isCompatible(castTargetType) }
                     if (otherTypes.isNotEmpty()) {
-                        val errorMessage = "Unsafe cast: this value can also be of type(s) [$otherTypes]."
-                        reporter.reportOn(expression.source, UnionTypeErrors.UNSAFE_UNION_TYPE_CAST, errorMessage, context)
+                        reporter.reportOn(
+                            source = expression.source,
+                            factory = UnionTypeErrors.UNSAFE_UNION_TYPE_CAST,
+                            a = otherTypes to context
+                        )
                     }
                 }
             }
             FirOperation.SAFE_AS -> {
-                if (!isTargetTypeInUnion) {
-                    val errorMessage = "Useless cast: type ${targetType.renderReadable()} is not part of the union type and the cast will always return null."
-                    reporter.reportOn(expression.source, UnionTypeErrors.USELESS_CAST, errorMessage, context)
+                if (!matches) {
+                    reporter.reportOn(
+                        source = expression.source,
+                        factory = UnionTypeErrors.USELESS_CAST,
+                        a = castTargetType to context
+                    )
                 }
             }
-            else -> {}
         }
     }
 }

@@ -1,10 +1,10 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <!-- Unique id for this plugin. Must stay constant for the life of the plugin. -->
-    <id>com.github.dmitriikochko.kt.kotlin-union-types</id>
+    <id>io.github.kochkaev.kotlin.uniontypes</id>
 
     <!-- Text to display as name on Settings | Plugins page. -->
-    <name>kotlin-union-types</name>
+    <name>Kotlin Union Types</name>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
@@ -18,11 +18,11 @@
     ]]>
     </description>
 
-    <vendor>dmitriikochko.github.com</vendor>
+    <vendor>kochkaev.github.com</vendor>
 
     <extensions defaultExtensionNs="com.intellij">
         <annotator
                 language="kotlin"
-                implementationClass="com.github.dmitriikochko.kt.idea.plugin.UnionTypeAnnotator"/>
+                implementationClass="io.github.kochkaev.kotlin.uniontypes.idea.plugin.UnionTypeAnnotator"/>
     </extensions>
 </idea-plugin>

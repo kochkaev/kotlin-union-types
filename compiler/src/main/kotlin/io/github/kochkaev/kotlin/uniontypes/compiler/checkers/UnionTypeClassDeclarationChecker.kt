@@ -1,32 +1,77 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
-import io.github.kochkaev.kotlin.uniontypes.compiler.util.findUnionTypeAnnotations
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType.Companion.union
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.getUnionAnnotations
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirClassChecker
 import org.jetbrains.kotlin.fir.declarations.FirClass
-import org.jetbrains.kotlin.fir.declarations.FirRegularClass
-import org.jetbrains.kotlin.fir.types.FirResolvedTypeRef
+import org.jetbrains.kotlin.fir.resolve.defaultType
+import org.jetbrains.kotlin.fir.resolve.toSymbol
+import org.jetbrains.kotlin.fir.symbols.SymbolInternals
+import org.jetbrains.kotlin.fir.types.*
 
-object UnionTypeDeclarationChecker : FirClassChecker(MppCheckerKind.Common) {
+object UnionTypeClassDeclarationChecker : FirClassChecker(MppCheckerKind.Common) {
+    @OptIn(SymbolInternals::class)
     context(context: CheckerContext, reporter: DiagnosticReporter)
     override fun check(declaration: FirClass) {
-        if (declaration !is FirRegularClass) return
+        val typeContext = context.session.typeContext
+        val substitutor = typeContext.createSubstitutorForSuperTypes(declaration.defaultType())
 
-        for (superTypeRef in declaration.superTypeRefs) {
-            if (superTypeRef !is FirResolvedTypeRef) continue
+        val unionBuilder = UnionConeType.builder(
+            declaration = declaration,
+        )
+
+        declaration.superTypeRefs.forEach { superTypeRef ->
+            if (superTypeRef !is FirResolvedTypeRef) return@forEach
 
             val superConeType = superTypeRef.coneType
-            val unionTypeAnnotations = superConeType.findUnionTypeAnnotations()
+            val unionTypeAnnotations = superConeType.getUnionAnnotations()
 
             if (unionTypeAnnotations.isNotEmpty()) {
                 reporter.reportOn(
                     source = superTypeRef.source,
                     factory = UnionTypeErrors.UNION_TYPE_ON_SUPERTYPE,
                 )
+            }
+
+            if (superConeType is ConeClassLikeType) {
+                val superTypeSymbol = superConeType.lookupTag.toSymbol() ?: return@forEach
+                val superTypeFir = superTypeSymbol.fir as? FirClass ?: return@forEach
+
+                superTypeFir.typeParameters.forEachIndexed { i, typeParameterRef ->
+                    val typeParameterSymbol = typeParameterRef.symbol
+                    val argumentFromChild = superConeType.typeArguments.getOrNull(i)
+                    if (argumentFromChild == null || argumentFromChild !is ConeKotlinTypeProjection) return@forEachIndexed
+//                    val typeParameterCone = with(typeContext) { substitutor?.safeSubstitute(typeParameterRef.toConeType()) } as? ConeKotlinType ?: return@forEach
+                    val actualBounds = argumentFromChild.type.let { cone ->
+                        if (cone is ConeTypeParameterType)
+                            declaration.typeParameters
+                                .map { it.symbol }
+                                .firstOrNull { it.name == cone.lookupTag.name }
+                                ?.resolvedBounds
+                                ?.map { it.coneType to it.source }
+                        else listOf(cone to superTypeRef.source)
+                    } ?: return@forEachIndexed
+                    if (actualBounds.isEmpty()) return@forEachIndexed
+
+                    typeParameterSymbol.resolvedBounds.forEach { bound ->
+                        val boundWrapped= unionBuilder(bound.coneType)
+                        if (!boundWrapped.isUnionType) return@forEach
+                        actualBounds.forEach {
+                            checkCompare(
+                                target = boundWrapped,
+                                other = unionBuilder(it.first),
+                                source = it.second,
+                            )
+                        }
+                    }
+                }
             }
         }
     }

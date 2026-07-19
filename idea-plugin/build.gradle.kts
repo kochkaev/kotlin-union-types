@@ -1,53 +1,43 @@
-import org.jetbrains.changelog.closure
 import org.jetbrains.changelog.markdownToHTML
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.models.ProductInfo.LayoutItemKind
 
 plugins {
-    id("java")
-    id("org.jetbrains.kotlin.jvm") version "1.9.22"
-    id("org.jetbrains.intellij") version "1.17.3"
-    id("org.jetbrains.changelog") version "2.2.0"
+    alias(libs.plugins.intellij)
+    alias(libs.plugins.changelog)
+    kotlin("jvm")
 }
 
-group = "com.github.dmitriikochko.kt"
+group = "io.github.kochkaev.kotlin.uniontypes"
 version = "1.0.0"
 
 repositories {
     mavenCentral()
+    intellijPlatform {
+        defaultRepositories()
+    }
 }
 
 dependencies {
     implementation(project(":compiler"))
     implementation(project(":annotations"))
+
+    intellijPlatform {
+        intellijIdea(libs.versions.idea)
+        bundledPlugin("org.jetbrains.kotlin")
+    }
 }
 
-// Configure Gradle IntelliJ Plugin
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
-intellij {
-    pluginName.set("kotlin-union-types")
-    version.set("2023.3.6")
-    type.set(IntelliJPlatformType.IC) // Target IDE Platform
-
-    plugins.set(listOf("org.jetbrains.kotlin"))
+intellijPlatform {
+//    pluginName.set("kotlin-union-types")
+//    platformVersion.set(libs.versions.idea)
+//    platformType.set(IntelliJPlatformType.IC)
+//
 }
 
 tasks {
-    // Set the JVM compatibility versions
-    withType<JavaCompile> {
-        sourceCompatibility = "17"
-        targetCompatibility = "17"
-    }
-    withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "17"
-    }
-
-    patchPluginXml {
-        sinceBuild.set("233")
-        untilBuild.set("241.*")
-    }
-
     runIde {
-        autoReloadPlugins.set(true)
+//        autoReloadPlugins.set(true)
     }
 
     signPlugin {

@@ -1,7 +1,8 @@
 plugins {
-    `kotlin-dsl`
+    kotlin("jvm")
+    alias(libs.plugins.mavenPublishing)
 }
 
-repositories {
-    mavenCentral()
+mavenPublishing {
+    coordinates("io.github.kochkaev.kotlin.uniontypes", "kotlin-union-types-annotations", "0.0")
 }

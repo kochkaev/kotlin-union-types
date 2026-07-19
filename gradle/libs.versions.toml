@@ -3,20 +3,20 @@
 # https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
 
 [versions]
-kotlin = "2.2.21"
-kotlinxDatetime = "0.7.1"
-kotlinxSerializationJSON = "1.9.0"
-kotlinxCoroutines = "1.10.2"
+kotlin = "2.4.0"
+mavenPublishing = "0.35.0"
+# IJ-PLUGIN
+intellij = "2.10.5"
+changelog = "2.2.0"
+idea = "2024.1.4"
+ideaSince = "241"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
-kotlinxDatetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
-kotlinxSerialization = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerializationJSON" }
-kotlinxCoroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutines" }
-
-# Libraries can be bundled together for easier import
-[bundles]
-kotlinxEcosystem = ["kotlinxDatetime", "kotlinxSerialization", "kotlinxCoroutines"]
+kotlinCompilerEmbeddable = { group = "org.jetbrains.kotlin", name = "kotlin-compiler-embeddable", version.ref = "kotlin" }
 
 [plugins]
-kotlinPluginSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+mavenPublishing = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublishing" }
+# IJ-PLUGIN
+changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
+intellij = { id = "org.jetbrains.intellij.platform", version.ref = "intellij" }
