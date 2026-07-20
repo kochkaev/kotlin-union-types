@@ -2,7 +2,6 @@ package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
-import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType.Companion.union
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.getUnionAnnotations
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter

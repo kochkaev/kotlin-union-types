@@ -56,6 +56,7 @@ import kotlin.reflect.KClass
  *
  * @param types An array of `KClass` references representing the allowed types in the union.
  * @see UnionAdv for a more powerful version that supports generics and type parameters.
+ * @see Intersection
  */
 @Target(AnnotationTarget.TYPE, AnnotationTarget.TYPE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME) // Keep for reflection
@@ -105,6 +106,7 @@ public annotation class Union(vararg val types: KClass<*>)
  * @param types A vararg of `Type` instances, each defining a component of the union.
  * @see Union for a simpler annotation for non-generic types.
  * @see Type for how to construct the arguments for this annotation.
+ * @see IntersectionAdv
  */
 @Target(AnnotationTarget.TYPE, AnnotationTarget.TYPE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME) // Keep for reflection
@@ -112,7 +114,75 @@ public annotation class Union(vararg val types: KClass<*>)
 public annotation class UnionAdv(vararg val types: Type)
 
 /**
- * A descriptor used within `@UnionAdv` to define a type, including its generics or a reference to a type parameter.
+ * Defines an intersection type, requiring the annotated type to conform to all specified `types`.
+ *
+ * This annotation is conceptually similar to Kotlin's `where` clause for generics, but it can be
+ * applied to any type, parameter, or return value. It enforces that a value must be a subtype
+ * of all types listed in the intersection.
+ *
+ * **Basic Usage:**
+ *
+ * ```kotlin
+ * // 'value' must be both a CharSequence and a Serializable.
+ * val value: @Intersection(CharSequence::class, Serializable::class) Any
+ *
+ * value = "hello" // OK, String is both CharSequence and Serializable
+ * value = 123L // Compilation Error: Long is not CharSequence
+ * ```
+ *
+ * **With Type Aliases:**
+ *
+ * Intersections are powerful when combined with type aliases to create complex, reusable constraints.
+ *
+ * ```kotlin
+ * typealias ComparableAndSerializable = @Intersection(Comparable::class, Serializable::class) Any
+ *
+ * fun <T: ComparableAndSerializable> sortAndStore(items: List<T>) {
+ *     // ...
+ * }
+ * ```
+ *
+ * @param types An array of `KClass` references representing all required types for the intersection.
+ * @see IntersectionAdv for a version that supports generics.
+ * @see Union
+ */
+@Target(AnnotationTarget.TYPE, AnnotationTarget.TYPE_PARAMETER)
+@Retention(AnnotationRetention.RUNTIME) // Keep for reflection
+@Repeatable
+public annotation class Intersection(vararg val types: KClass<*>)
+
+/**
+ * Defines an advanced intersection type with support for generics and type parameters.
+ *
+ * `@IntersectionAdv` provides the same functionality as `@Intersection` but adds the ability
+ * to work with generic type arguments and forward type parameters from an enclosing scope.
+ *
+ * **Usage with Generics:**
+ *
+ * ```kotlin
+ * // Requires a value to be a Comparable list of Strings.
+ * val value: @IntersectionAdv(
+ *     Type(List::class, generics = [Type(String::class)]),
+ *     Type(RandomAccess::class)
+ * ) Any
+ *
+ * // ArrayList<String> implements both List<String> and RandomAccess.
+ * value = arrayListOf("a", "b") // OK
+ * ```
+ *
+ * @param types A vararg of `Type` instances, each defining a component of the intersection.
+ * @see Intersection for a simpler annotation for non-generic types.
+ * @see Type for how to construct the arguments for this annotation.
+ * @see UnionAdv
+ */
+@Target(AnnotationTarget.TYPE, AnnotationTarget.TYPE_PARAMETER)
+@Retention(AnnotationRetention.RUNTIME) // Keep for reflection
+@Repeatable
+public annotation class IntersectionAdv(vararg val types: Type)
+
+/**
+ * A descriptor used within `@UnionAdv` and `@IntersectionAdv` to define a type,
+ * including its generics or a reference to a type parameter.
  *
  * **You must provide either `type` or `typeParameter`, but not both.**
  *
@@ -127,5 +197,3 @@ public annotation class Type(
     val typeParameter: String = "",
     vararg val generics: Type = []
 )
-
-// TODO: add intersection support via @Intersection and @IntersectionAdv annotations

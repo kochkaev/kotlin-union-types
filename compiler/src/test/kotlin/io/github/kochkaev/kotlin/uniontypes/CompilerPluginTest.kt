@@ -204,9 +204,237 @@ class MultipleInheritanceTests : BaseCompilerPluginTest() {
 }
 
 class ForbiddenCasesTests : BaseCompilerPluginTest() {
-    @Test fun `should forbid union on supertype`() = compile("class MyClass : @Union(String::class) Any()", shouldFail = true, errorMessage = "@Union/@UnionAdv annotation is not allowed on supertypes")
-    @Test fun `should forbid extension on union type property`() = compile("val (@Union(String::class) Any).ext: Int\n get() = 0", shouldFail = true, errorMessage = "Extension functions/properties are not allowed on union types")
-    @Test fun `should forbid union on context parameter`() = compile("context(context: @Union(String::class) Any) fun f() {}", shouldFail = true, errorMessage = "Union types are not allowed on context parameters")
+    @Test fun `should forbid union on supertype`() = compile("class MyClass : @Union(String::class) Any()", shouldFail = true, errorMessage = "Union and intersection type annotations is not allowed on supertypes")
+    @Test fun `should forbid extension on union type property`() = compile("val (@Union(String::class) Any).ext: Int\n get() = 0", shouldFail = true, errorMessage = "Extension functions/properties are not allowed on union/intersection types")
+    @Test fun `should forbid union on context parameter`() = compile("context(context: @Union(String::class) Any) fun f() {}", shouldFail = true, errorMessage = "Union/intersection types are not allowed on context parameters")
+}
+
+class IntersectionTests : BaseCompilerPluginTest() {
+    @Test
+    fun `should allow assigning a correct type to intersection`() {
+        compile("""
+            interface A
+            interface B
+            class C: A, B
+            val x: @Intersection(A::class, B::class) Any = C()
+        """)
+    }
+
+    @Test
+    fun `should forbid assigning an incorrect type to intersection`() {
+        compile("""
+            interface A
+            interface B
+            class C: A
+            val x: @Intersection(A::class, B::class) Any = C()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle intersection with typealias`() {
+        compile("""
+            interface A
+            interface B
+            typealias AB = @Intersection(A::class, B::class) Any
+            class C: A, B
+            val x: AB = C()
+        """)
+    }
+
+    @Test
+    fun `should handle advanced intersection`() {
+        compile("""
+            interface A<T>
+            interface B<T>
+            class C<T>: A<T>, B<T>
+            val x: @IntersectionAdv(Type(A::class, generics = [Type(String::class)]), Type(B::class, generics = [Type(String::class)])) Any = C<String>()
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect advanced intersection`() {
+        compile("""
+            interface A<T>
+            interface B<T>
+            class C<T>: A<T>, B<T>
+            val x: @IntersectionAdv(Type(A::class, generics = [Type(String::class)]), Type(B::class, generics = [Type(Int::class)])) Any = C<String>()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+}
+
+class UnionAndIntersectionInteractionTests : BaseCompilerPluginTest() {
+
+    @Test
+    fun `should fail when a type is annotated with both @Union and @Intersection`() {
+        compile("""
+            val x: @Union(String::class) @Intersection(CharSequence::class) Any = "hello"
+        """, shouldFail = true, errorMessage = "A type cannot be annotated with both @Union/@UnionAdv and @Intersection/@IntersectionAdv at the same time.")
+    }
+
+    @Test
+    fun `should fail when @Intersection is applied to a Union typealias`() {
+        compile("""
+            typealias U = @Union(String::class, Int::class) Any
+            val x: @Intersection(CharSequence::class) U = "hello"
+        """, shouldFail = true, errorMessage = "An @Intersection/@IntersectionAdv annotation cannot be applied to a union type.")
+    }
+
+    @Test
+    fun `should allow @Union to be applied to an Intersection typealias`() {
+        compile("""
+            interface A
+            interface B
+            interface C
+            open class D: A, B
+            class E: D(), C
+            typealias I = @Intersection(A::class, B::class) Any
+            val x: @Union(D::class) I = E()
+        """)
+    }
+
+    @Test
+    fun `should fail when incorrect type is assigned to a Union of an Intersection`() {
+        compile("""
+            interface A
+            interface B
+            class C: A, B
+            class D
+            class E
+            typealias I = @Intersection(A::class, B::class) Any
+            val x: @Union(D::class) I = E()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should correctly intersect a type with a union type`() {
+        compile("""
+            interface A
+            open class B
+            class C: B(), A
+            class D: B(), A
+            class E: B()
+
+            typealias U = @Union(C::class, D::class) Any
+            // Resulting type is (A & C) | (A & D), which simplifies to C | D
+            val x: @Intersection(A::class, U::class) Any = C()
+            val y: @Intersection(A::class, U::class) Any = D()
+        """)
+    }
+
+    @Test
+    fun `should fail when assigned type does not match intersection with a union`() {
+        compile("""
+            interface A
+            interface B
+            interface C
+            class ImplA: A
+            class ImplAB: A, B
+            class ImplAC: A, C
+
+            typealias U_BC = @Union(ImplAB::class, ImplAC::class) Any
+            // Intersection with A gives (A & ImplAB) | (A & ImplAC) which is ImplAB | ImplAC
+            val x: @Intersection(A::class, U_BC::class) Any = ImplAB()
+            val y: @Intersection(A::class, U_BC::class) Any = ImplAC()
+            val z: @Intersection(A::class, U_BC::class) Any = ImplA()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle intersection of multiple union types`() {
+        compile("""
+            interface A; interface B
+            interface C; interface D
+            interface E; interface F
+
+            class ImplACE: A, C, E
+            class ImplADF: A, D, F
+            class ImplBCE: B, C, E
+
+            typealias U1 = @Union(A::class, B::class) Any
+            typealias U2 = @Union(C::class, D::class) Any
+            typealias U3 = @Union(E::class, F::class) Any
+
+            // Type is (A|B)&(C|D)&(E|F)
+            val x: @Intersection(U1::class, U2::class, U3::class) Any = ImplACE()
+            val y: @Intersection(U1::class, U2::class, U3::class) Any = ImplADF()
+            val z: @Intersection(U1::class, U2::class, U3::class) Any = ImplBCE()
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type with intersection of multiple unions`() {
+        compile("""
+            interface A; interface B
+            interface C; interface D
+            interface E; interface F
+
+            class ImplAC: A, C // Does not implement E or F
+
+            typealias U1 = @Union(A::class, B::class) Any
+            typealias U2 = @Union(C::class, D::class) Any
+            typealias U3 = @Union(E::class, F::class) Any
+
+            // Type is (A|B)&(C|D)&(E|F)
+            val x: @Intersection(U1::class, U2::class, U3::class) Any = ImplAC()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should allow union to contain an intersection type`() {
+        compile("""
+            interface A; interface B
+            class ImplAB: A, B
+            class C
+
+            typealias I = @Intersection(A::class, B::class) Any
+            val x: @Union(I::class, C::class) Any = ImplAB()
+            val y: @Union(I::class, C::class) Any = C()
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type in union containing an intersection`() {
+        compile("""
+            interface A; interface B
+            class ImplA: A
+            class C
+
+            typealias I = @Intersection(A::class, B::class) Any
+            val x: @Union(I::class, C::class) Any = ImplA()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should allow union of an intersection typealias and a union typealias`() {
+        compile("""
+            interface A; interface B
+            class ImplAB: A, B
+            class C
+            class D
+
+            typealias I = @Intersection(A::class, B::class) Any
+            typealias U = @Union(C::class, D::class) Any
+
+            val x: @Union(I::class, U::class) Any = ImplAB()
+            val y: @Union(I::class, U::class) Any = C()
+            val z: @Union(I::class, U::class) Any = D()
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type in union of intersection and union typealiases`() {
+        compile("""
+            interface A; interface B
+            class ImplA: A
+            class C
+            class D
+
+            typealias I = @Intersection(A::class, B::class) Any
+            typealias U = @Union(C::class, D::class) Any
+
+            val x: @Union(I::class, U::class) Any = ImplA()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
 }
 
 // TODO: not implemented yet

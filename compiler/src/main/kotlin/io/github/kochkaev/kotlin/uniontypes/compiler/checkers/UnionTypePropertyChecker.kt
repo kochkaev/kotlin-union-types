@@ -1,7 +1,6 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
-import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType.Companion.union
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind

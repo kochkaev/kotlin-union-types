@@ -1,7 +1,6 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
-import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType.Companion.union
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.diagnostics.*
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
@@ -33,6 +32,8 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
     val EXTENSION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val UNION_TYPE_ON_CONTEXT_PARAMETER by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val TYPE_AND_TYPE_PARAMETER_AT_SAME_TIME by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val INTERSECTION_AND_UNION_AT_SAME_TIME by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val INTERSECTION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
 
     val TYPE_PARAMETER_NOT_FOUND by error1<PsiElement, String>(SourceElementPositioningStrategies.DEFAULT)
 
@@ -42,7 +43,7 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                 with(UnionTypeDiagnosticRenderers) { with (it) {
                     put(
                         factory = UNION_TYPE_ON_SUPERTYPE,
-                        message = "@Union/@UnionAdv annotation is not allowed on supertypes",
+                        message = "Union and intersection type annotations is not allowed on supertypes",
                     )
                     put(
                         factory = TYPE_MISMATCH,
@@ -52,7 +53,7 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                     )
                     put(
                         factory = INVALID_SUPERTYPE_FOR_UNION_TYPE,
-                        message = "Type {0} is not a subtype of {1} as required by the union type annotation.",
+                        message = "Type {0} is not a subtype of {1} as required by the union/intersection type annotation.",
                         rendererA = TYPE_WITH_UNIONS,
                         rendererB = TYPE_WITH_UNIONS
                     )
@@ -80,16 +81,25 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
 
                     put(
                         factory = EXTENSION_ON_UNION_TYPE,
-                        message = "Extension functions/properties are not allowed on union types."
+                        message = "Extension functions/properties are not allowed on union/intersection types."
                     )
                     put(
                         factory = UNION_TYPE_ON_CONTEXT_PARAMETER,
-                        message = "Union types are not allowed on context parameters."
+                        message = "Union/intersection types are not allowed on context parameters."
                     )
                     put(
                         factory = TYPE_AND_TYPE_PARAMETER_AT_SAME_TIME,
                         message = "Cannot use 'type' and 'typeParameter' at the same time."
                     )
+                    put(
+                        factory = INTERSECTION_AND_UNION_AT_SAME_TIME,
+                        message = "A type cannot be annotated with both @Union/@UnionAdv and @Intersection/@IntersectionAdv at the same time."
+                    )
+                    put(
+                        factory = INTERSECTION_ON_UNION_TYPE,
+                        message = "An @Intersection/@IntersectionAdv annotation cannot be applied to a union type."
+                    )
+
 
                     put(
                         factory = TYPE_PARAMETER_NOT_FOUND,
@@ -118,7 +128,9 @@ object UnionTypeDiagnosticRenderers {
     context(context: CheckerContext)
     fun UnionConeType.renderReadable(preRenderedConstructors: Map<TypeConstructorMarker, String>? = null): String {
         val builder = StringBuilder()
-        val renderer = ConeTypeRendererWithUnion(context, builder, preRenderedConstructors, toBuilder()) { ConeIdShortRenderer() }
+        val renderer = with(null as? DiagnosticReporter) {
+            ConeTypeRendererWithUnion(context, builder, preRenderedConstructors, toBuilder()) { ConeIdShortRenderer() }
+        }
         renderer.render(this)
         return builder.toString()
     }
@@ -127,7 +139,8 @@ open class ConeTypeRendererWithUnion (
     val context: CheckerContext,
     builder: StringBuilder,
     preRenderedConstructors: Map<TypeConstructorMarker, String>? = null,
-    val unionBuilder: (ConeKotlinType) -> UnionConeType = { it.union() },
+    val unionBuilder: (ConeKotlinType) -> UnionConeType =
+        with(context) { with(null as DiagnosticReporter?) { UnionConeType.builder() } },
     idRendererCreator: () -> ConeIdRenderer,
 ): ConeTypeRendererForReadability(builder, preRenderedConstructors, idRendererCreator) {
 

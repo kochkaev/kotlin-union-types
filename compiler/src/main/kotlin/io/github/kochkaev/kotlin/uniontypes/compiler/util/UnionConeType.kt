@@ -1,6 +1,8 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.util
 
+import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
+import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.declarations.FirDeclaration
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
@@ -23,7 +25,7 @@ import org.jetbrains.kotlin.types.model.TypeSystemInferenceExtensionContext
 import org.jetbrains.kotlin.types.model.safeSubstitute
 
 class UnionConeType private constructor(
-    val coneType: ConeKotlinType,
+    val rawType: ConeKotlinType,
     val substitutor: TypeSubstitutorMarker? = null,
     val declaration: FirDeclaration? = null,
     val unionOverride: List<ConeKotlinType>? = null,
@@ -33,17 +35,28 @@ class UnionConeType private constructor(
         get() = context.session.typeContext
 
     companion object {
+        context(context: CheckerContext, reporter: DiagnosticReporter?)
         fun ConeKotlinType.union(
             declaration: FirDeclaration? = null,
             substitutor: TypeSubstitutorMarker? = null,
             unionOverride: List<ConeKotlinType>? = null,
-        ) = UnionConeType(this, substitutor, declaration, unionOverride)
+        ) = UnionConeType(this, substitutor, declaration, unionOverride).apply {
+            checkValid()
+        }
 
+        context(context: CheckerContext, reporter: DiagnosticReporter?)
         fun builder(
             declaration: FirDeclaration? = null,
             substitutor: TypeSubstitutorMarker? = null,
-        ) = { coneType: ConeKotlinType -> coneType.union(declaration, substitutor) }
+            autoExpand: Boolean = true,
+        ) = { coneType: ConeKotlinType -> coneType.union(declaration, substitutor).let {
+            if (autoExpand) it.withIntersectionOrThis else it
+        } }
     }
+
+    private var _cachedUnexpanded: UnionConeType? = null
+    val cachedUnexpanded: UnionConeType?
+        get() = _cachedUnexpanded
 
     private var _isUnionType: Boolean? = null
     context(context: CheckerContext, diagnosticReporter: DiagnosticReporter?)
@@ -70,7 +83,7 @@ class UnionConeType private constructor(
     context(context: CheckerContext, reporter: DiagnosticReporter?)
     val unionRaw: List<ConeKotlinType>
         get() = _unionRaw.elseIfNull {
-            _unionRaw = unionAnnotations.unwrapUnionsOrEmptyOrNullIfError(declaration)
+            _unionRaw = unionAnnotations.unwrapUnionOrEmptyOrNullIfError(declaration)
             if (_unionRaw == null) {
                 _isBroken = true
                 _unionRaw = listOf()
@@ -117,7 +130,7 @@ class UnionConeType private constructor(
     val resolvedUnion: List<ConeKotlinType>
         get() = _resolvedUnion.elseIfNull {
             _resolvedUnion = union.fold(mutableListOf()) { aac, it ->
-                val resolved = it.tryRecursiveResolveTypealiasUnion()
+                val resolved = it.tryRecursiveResolveTypealias(UNION_ANNOTATION_CLASS_ID, UNION_ADV_ANNOTATION_CLASS_ID)
                 if (!resolved.isNullOrEmpty()) aac += resolved
                 else aac += it
                 aac
@@ -128,17 +141,7 @@ class UnionConeType private constructor(
     context(context: CheckerContext, reporter: DiagnosticReporter?)
     val fullyResolvedUnion: List<ConeKotlinType>
         get() = _fullyResolvedUnion.elseIfNull {
-            _fullyResolvedUnion = resolvedUnion
-            if (_fullyResolvedUnion.isNullOrEmpty()) {
-                val builder = toBuilder()
-                val nextType = coneType.unwrapTypeAliasOrNull()?.coneType?.let {
-                    it.abbreviatedType ?: it
-                }
-                if (nextType != null) {
-                    val next = builder(nextType)
-                    _fullyResolvedUnion = next.fullyResolvedUnion
-                }
-            }
+            _fullyResolvedUnion = resolved?.resolvedUnion ?: listOf()
             _fullyResolvedUnion!!
         }
     private var _fullyResolvedUnionOrThis: List<ConeKotlinType>? = null
@@ -163,19 +166,43 @@ class UnionConeType private constructor(
             _fullyResolvedUnionWrappedOrThis!!
         }
 
-    private var _resolvedType: ConeKotlinType? = null
+    private var _expandedType: ConeKotlinType? = null
     context(context: CheckerContext)
-    val resolvedType: ConeKotlinType
-        get() = _resolvedType.elseIfNull {
-            _resolvedType = substituteOrSelf(coneType.fullyExpandedType())
-            _resolvedType!!
+    val expandedType: ConeKotlinType
+        get() = _expandedType.elseIfNull {
+            _expandedType = substituteOrSelf(rawType.fullyExpandedType())
+            _expandedType!!
         }
+
+    private var _resolved: Array<UnionConeType?>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val resolved: UnionConeType?
+        get() = _resolved.elseIfNull {
+            val resolved =
+                if (isDeclaredUnionType || isDeclaredIntersectionType || isUnionOverrode) this
+                else rawAbbreviated?.resolved
+            _resolved = arrayOf(resolved)
+            _resolved!!
+        }[0]
+    private var _rawAbbreviated: Array<UnionConeType?>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val rawAbbreviated: UnionConeType?
+        get() = _rawAbbreviated.elseIfNull {
+            var rawAbbreviated: UnionConeType? = null
+            val builder = toBuilder(autoExpand = false)
+            val nextType = rawType.unwrapTypeAliasOrNull()?.coneType?.let {
+                it.abbreviatedType ?: it
+            }
+            if (nextType != null) rawAbbreviated = builder(nextType)
+            _rawAbbreviated = arrayOf(rawAbbreviated)
+            _rawAbbreviated!!
+        }[0]
 
     private var _thisType: ConeKotlinType? = null
     context(context: CheckerContext)
     val thisType: ConeKotlinType
         get() = _thisType.elseIfNull {
-            _thisType = substituteOrSelf(coneType.abbreviatedTypeOrSelf)
+            _thisType = substituteOrSelf(rawType.abbreviatedTypeOrSelf)
             _thisType!!
         }
 
@@ -192,11 +219,84 @@ class UnionConeType private constructor(
     val isBroken: Boolean
         get() = _isBroken.elseIfNull {
             unionRaw
+            intersectionRaw
             if (_isBroken == null) _isBroken = false
             _isBroken!!
         }
 
     val isUnionOverrode: Boolean = !unionOverride.isNullOrEmpty()
+
+    private var _intersectionAnnotations: List<FirAnnotation>? = null
+    context(context: CheckerContext)
+    val intersectionAnnotations: List<FirAnnotation>
+        get() = _intersectionAnnotations.elseIfNull {
+            _intersectionAnnotations = thisType.getIntersectionAnnotations()
+            _intersectionAnnotations!!
+        }
+    private var _intersectionRaw: List<ConeKotlinType>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val intersectionRaw: List<ConeKotlinType>
+        get() = _intersectionRaw.elseIfNull {
+            _intersectionRaw = intersectionAnnotations.unwrapIntersectionOrEmptyOrNullIfError(declaration)
+            if (_intersectionRaw == null) {
+                _isBroken = true
+                _intersectionRaw = listOf()
+            }
+            _intersectionRaw!!
+        }
+    private var _isDeclaredIntersectionType: Boolean? = null
+    context(context: CheckerContext)
+    val isDeclaredIntersectionType: Boolean
+        get() = _isDeclaredIntersectionType.elseIfNull {
+            _isDeclaredIntersectionType = intersectionAnnotations.isNotEmpty()
+            _isDeclaredIntersectionType!!
+        }
+    private var _declaredIntersection: List<ConeKotlinType>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val declaredIntersection: List<ConeKotlinType>
+        get() = _declaredIntersection.elseIfNull {
+            _declaredIntersection = intersectionRaw.map { substituteOrSelf(it) }
+            _declaredIntersection!!
+        }
+    private var _declaredIntersectionWrapped: List<UnionConeType>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val declaredIntersectionWrapped: List<UnionConeType>
+        get() = _declaredIntersectionWrapped.elseIfNull {
+            _declaredIntersectionWrapped = declaredIntersection.map { copyTo(it) }
+            _declaredIntersectionWrapped!!
+        }
+    private var _resolvedIntersection: List<ConeKotlinType>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val resolvedIntersection: List<ConeKotlinType>
+        get() = _resolvedIntersection.elseIfNull {
+            _resolvedIntersection = resolved?.declaredIntersection ?: listOf()
+            _resolvedIntersection!!
+        }
+    private var _resolvedIntersectionWrapped: List<UnionConeType>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val resolvedIntersectionWrapped: List<UnionConeType>
+        get() = _resolvedIntersectionWrapped.elseIfNull {
+            _resolvedIntersectionWrapped = resolvedIntersection.map { copyTo(it) }
+            _resolvedIntersectionWrapped!!
+        }
+
+
+    private var _withIntersection: Array<UnionConeType?>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val withIntersection: UnionConeType?
+        get() = _withIntersection.elseIfNull {
+            _withIntersection = arrayOf(
+                if (resolvedIntersection.isNotEmpty()) {
+                    resolvedIntersectionWrapped.intersectUnions(toBuilder()).apply {
+                        _cachedUnexpanded = this@UnionConeType
+                    }
+                } else null
+            )
+            _withIntersection!!
+        }[0]
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val withIntersectionOrThis: UnionConeType
+        get() = withIntersection ?: this
 
 
     context(context: CheckerContext, reporter: DiagnosticReporter?)
@@ -250,13 +350,31 @@ class UnionConeType private constructor(
     fun substituteOrSelf(other: ConeKotlinType, customSubstitutor: TypeSubstitutorMarker? = substitutor): ConeKotlinType =
         substitute(other, customSubstitutor) ?: other
 
-    fun copyTo(other: ConeKotlinType): UnionConeType =
-        UnionConeType(
-            coneType = other,
-            substitutor = substitutor,
-            declaration = declaration,
-        )
-    fun toBuilder() = builder(declaration, substitutor)
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    fun copyTo(other: ConeKotlinType): UnionConeType = toBuilder().invoke(other)
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    fun toBuilder(autoExpand: Boolean = true) = builder(declaration, substitutor, autoExpand)
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
     fun withOverride(unionOverride: List<ConeKotlinType>?) =
-        coneType.union(declaration, substitutor, unionOverride)
+        rawType.union(declaration, substitutor, unionOverride)
+
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    fun checkValid(): Boolean {
+        val isIntersection = resolvedIntersection.isNotEmpty()
+        if (isUnionType && isIntersection) {
+            reporter?.reportOn(
+                source = declaration?.source,
+                factory = UnionTypeErrors.INTERSECTION_AND_UNION_AT_SAME_TIME
+            )
+            return false
+        }
+        if (isIntersection && resolved?.rawAbbreviated?.isUnionType == true) {
+           reporter?.reportOn(
+                source = declaration?.source,
+                factory = UnionTypeErrors.INTERSECTION_ON_UNION_TYPE
+            )
+            return false
+        }
+        return true
+    }
 }

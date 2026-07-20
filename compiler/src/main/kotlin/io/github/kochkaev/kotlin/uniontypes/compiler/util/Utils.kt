@@ -60,14 +60,19 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import kotlin.collections.contains
 
-val UNION_TYPE_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.Union"))
-val ADV_UNION_TYPE_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.UnionAdv"))
-val unionAnnotationsClassIds = listOf(UNION_TYPE_ANNOTATION_CLASS_ID, ADV_UNION_TYPE_ANNOTATION_CLASS_ID)
+val UNION_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.Union"))
+val UNION_ADV_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.UnionAdv"))
+val unionAnnotationsClassIds = listOf(UNION_ANNOTATION_CLASS_ID, UNION_ADV_ANNOTATION_CLASS_ID)
+val INTERSECTION_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.Intersection"))
+val INTERSECTION_ADV_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.IntersectionAdv"))
+val intersectionAnnotationsClassIds = listOf(INTERSECTION_ANNOTATION_CLASS_ID, INTERSECTION_ADV_ANNOTATION_CLASS_ID)
 
-internal fun ConeKotlinType.getUnionAnnotations(): List<FirAnnotation> =
+internal fun ConeKotlinType.getAnnotations(list: List<ClassId>): List<FirAnnotation> =
     typeAnnotations.filter {
-        unionAnnotationsClassIds.contains(it.annotationTypeRef.coneType.classId)
+        list.contains(it.annotationTypeRef.coneType.classId)
     }
+internal fun ConeKotlinType.getUnionAnnotations(): List<FirAnnotation> = getAnnotations(unionAnnotationsClassIds)
+internal fun ConeKotlinType.getIntersectionAnnotations(): List<FirAnnotation> = getAnnotations(intersectionAnnotationsClassIds)
 
 context(context: CheckerContext)
 internal fun ConeKotlinType.unwrapTypeAliasOrNull(): FirTypeRef? {
@@ -116,33 +121,47 @@ internal fun unwrapTypeParameters(
 }
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
-internal fun List<FirAnnotation>.unwrapUnionsOrEmptyOrNullIfError(
+internal fun List<FirAnnotation>.unwrapOrEmptyOrNullIfError(
     declaration: FirDeclaration? = null,
     recursive: Boolean = false,
+    simpleClassId: ClassId,
+    advancedClassId: ClassId,
 ): List<ConeKotlinType>? {
     val list = mutableListOf<ConeKotlinType>()
     this
-        .map { it.unwrapUnionOrEmptyOrNullIfError(declaration, recursive) }
+        .map { it.unwrapOrEmptyOrNullIfError(declaration, recursive, simpleClassId, advancedClassId) }
         .forEach {
             if (it == null) return null
             list.addAll(it)
         }
     return list.distinct()
 }
-
 context(context: CheckerContext, reporter: DiagnosticReporter?)
-internal fun FirAnnotation.unwrapUnionOrEmptyOrNullIfError(
+internal fun List<FirAnnotation>.unwrapUnionOrEmptyOrNullIfError(
     declaration: FirDeclaration? = null,
     recursive: Boolean = false,
+): List<ConeKotlinType>? = unwrapOrEmptyOrNullIfError(declaration, recursive, UNION_ANNOTATION_CLASS_ID, UNION_ADV_ANNOTATION_CLASS_ID)
+context(context: CheckerContext, reporter: DiagnosticReporter?)
+internal fun List<FirAnnotation>.unwrapIntersectionOrEmptyOrNullIfError(
+    declaration: FirDeclaration? = null,
+    recursive: Boolean = false,
+): List<ConeKotlinType>? = unwrapOrEmptyOrNullIfError(declaration, recursive, INTERSECTION_ANNOTATION_CLASS_ID, INTERSECTION_ADV_ANNOTATION_CLASS_ID)
+
+context(context: CheckerContext, reporter: DiagnosticReporter?)
+internal fun FirAnnotation.unwrapOrEmptyOrNullIfError(
+    declaration: FirDeclaration? = null,
+    recursive: Boolean = false,
+    simpleClassId: ClassId,
+    advancedClassId: ClassId,
 ): List<ConeKotlinType>? {
     val allowedTypesArgument = argumentMapping.mapping.values.firstIsInstanceOrNull<FirVarargArgumentsExpression>() ?: return emptyList()
     val allowedTypes = mutableListOf<ConeKotlinType>()
-    val isAdv = this.annotationTypeRef.coneType.classId == ADV_UNION_TYPE_ANNOTATION_CLASS_ID
+    val isAdv = this.annotationTypeRef.coneType.classId == advancedClassId
     val typeParameters = if (isAdv) unwrapTypeParameters(declaration?.symbol, context.session) else emptyList()
     allowedTypesArgument.arguments.forEach { argument ->
         val raw = if (isAdv) {
             // Advanced
-            argument.unwrapAdvancedUnionType(typeParameters)
+            argument.unwrapAdvancedType(typeParameters)
         } else {
             // Simple
             val kclassType = argument.resolvedType
@@ -150,7 +169,7 @@ internal fun FirAnnotation.unwrapUnionOrEmptyOrNullIfError(
         }
         if (raw == null) return null
         if (recursive) {
-            val resolved = raw.tryRecursiveResolveTypealiasUnion()
+            val resolved = raw.tryRecursiveResolveTypealias(simpleClassId, advancedClassId)
             if (!resolved.isNullOrEmpty()) allowedTypes += resolved
             else allowedTypes += raw
         } else allowedTypes += raw
@@ -159,11 +178,11 @@ internal fun FirAnnotation.unwrapUnionOrEmptyOrNullIfError(
 }
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
-internal fun ConeKotlinType.tryRecursiveResolveTypealiasUnion(): List<ConeKotlinType>? =
-    unwrapTypeAliasOrNull()?.coneType?.getUnionAnnotations()?.unwrapUnionsOrEmptyOrNullIfError(recursive = true)
+internal fun ConeKotlinType.tryRecursiveResolveTypealias(simple: ClassId, advanced: ClassId): List<ConeKotlinType>? =
+    unwrapTypeAliasOrNull()?.coneType?.getAnnotations(listOf(simple, advanced))?.unwrapOrEmptyOrNullIfError(recursive = true, simpleClassId = simple, advancedClassId = advanced)
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
-internal fun FirExpression.unwrapAdvancedUnionType(
+internal fun FirExpression.unwrapAdvancedType(
     typeParameters: List<FirTypeParameterSymbol> = listOf(),
 ): ConeKotlinType? {
     val arguments = (this as? FirFunctionCall)?.argumentList?.arguments ?: return null
@@ -203,7 +222,7 @@ internal fun FirExpression.unwrapAdvancedUnionType(
         else typeExpr?.argument?.resolvedType ?: return null
 
     val typeArguments = typeParametersExpr?.unwrapVararg()?.map { nestedExpr ->
-        val nestedType = (if (nestedExpr is FirSpreadArgumentExpression) nestedExpr.expression else nestedExpr).unwrapAdvancedUnionType(typeParameters)
+        val nestedType = (if (nestedExpr is FirSpreadArgumentExpression) nestedExpr.expression else nestedExpr).unwrapAdvancedType(typeParameters)
         nestedType?.toTypeProjection(ProjectionKind.INVARIANT) ?: ConeStarProjection
     } ?: emptyList()
 
@@ -248,7 +267,7 @@ fun List<UnionConeType>.intersectUnions(
     if (isEmpty()) return builder(typeContext.anyType())
     else if (size == 1) return this.first()
 
-    val newBase = ConeTypeIntersector.intersectTypes(typeContext, this.map { it.resolvedType })
+    val newBase = ConeTypeIntersector.intersectTypes(typeContext, this.map { it.expandedType })
     val new = builder(newBase)
     val intersected = reduce { accumulator, nextParent ->
         new.withOverride(intersectUnions(accumulator, nextParent))
