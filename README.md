@@ -16,6 +16,26 @@ The design of this plugin is guided by two core principles:
 
 2.  **Backward Compatibility**: Code written with this plugin remains fully compatible with the standard Kotlin compiler. If you compile a project using these annotations without the plugin, it will still compile successfully, as the annotations will simply be ignored. 
 
+## Installation
+
+The plugin is published to the Gradle Plugin Portal. To use it, apply the plugin to your Gradle project.
+
+### Kotlin DSL (`build.gradle.kts`)
+```kotlin
+plugins {
+    id("io.github.kochkaev.kotlin.uniontypes") version "YOUR_VERSION"
+}
+```
+
+### Groovy DSL (`build.gradle`)
+```groovy
+plugins {
+    id 'io.github.kochkaev.kotlin.uniontypes' version 'YOUR_VERSION'
+}
+```
+
+The plugin is applicable to any Kotlin Multiplatform target, including JVM, JS, Native, and Android.
+
 ## Features
 
 - **Static Type Checking**: Enforces that only allowed types are assigned or returned.
@@ -101,7 +121,7 @@ process<Int>(true)      // Compilation Error!
 
 Due to the compile-time-only nature of this plugin, there are scenarios where the type safety guarantees can be bypassed.
 
-1.  **Java Interoperability**: The Java compiler has no knowledge of these annotations. If you call a Kotlin function with a union/intersection type from Java, the constraints will not be enforced, allowing incorrect types to be passed.
+1.  **Platform Interoperability**: The Java compiler (and other platform-specific compilers) has no knowledge of these annotations. If you call a Kotlin function with a union/intersection type from another language (e.g., Java, Swift, or JavaScript), the constraints will not be enforced, allowing incorrect types to be passed. This weakness applies to all Kotlin Multiplatform targets.
 
 2.  **Reflection**: At runtime, the underlying type is just its base type (e.g., `Any`). Reflection can be used to inspect or assign values that violate the original compile-time contract.
 

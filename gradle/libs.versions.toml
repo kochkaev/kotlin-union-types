@@ -4,19 +4,32 @@
 
 [versions]
 kotlin = "2.4.0"
-mavenPublishing = "0.35.0"
-# IJ-PLUGIN
+mavenPublishing = "0.37.0"
+# K2 plugin
+kctFork = "0.13.0"
+junit-jupiter = "5.11.3"
+# IntelliJ IDEA plugin
 intellij = "2.10.5"
 changelog = "2.2.0"
 idea = "2024.1.4"
 ideaSince = "241"
+# Gradle plugin
+gradlePluginPublish = "1.2.1"
+# kotlin-union-types
+unionTypes = "0.0"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlinGradlePluginApi = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin-api", version.ref = "kotlin" }
 kotlinCompilerEmbeddable = { group = "org.jetbrains.kotlin", name = "kotlin-compiler-embeddable", version.ref = "kotlin" }
+kctFork = { group = "dev.zacsweers.kctfork", name = "core", version.ref = "kctFork" }
+junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
+junit-platformLauncher = { group = "org.junit.platform", name = "junit-platform-launcher" }
 
 [plugins]
 mavenPublishing = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublishing" }
-# IJ-PLUGIN
+# IntelliJ IDEA plugin
 changelog = { id = "org.jetbrains.changelog", version.ref = "changelog" }
 intellij = { id = "org.jetbrains.intellij.platform", version.ref = "intellij" }
+# Gradle plugin
+gradlePluginPublish = { id = "com.gradle.plugin-publish", version.ref = "gradlePluginPublish" }

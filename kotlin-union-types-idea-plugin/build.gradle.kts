@@ -19,8 +19,8 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":compiler"))
-    implementation(project(":annotations"))
+    implementation(project(":kotlin-union-types-compiler"))
+    implementation(project(":kotlin-union-types-annotations"))
 
     intellijPlatform {
         intellijIdea(libs.versions.idea)
