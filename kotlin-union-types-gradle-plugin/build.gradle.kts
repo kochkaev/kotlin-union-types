@@ -42,6 +42,7 @@ gradlePlugin {
             implementationClass = "io.github.kochkaev.kotlin.uniontypes.gradle.UnionTypesGradlePlugin"
             displayName = "Kotlin Union & Intersection Types Compiler Plugin"
             description = "A Kotlin compiler plugin (K2/FIR) that introduces support for Union and Intersection Types via annotations."
+            tags.set(listOf("kotlin", "compiler-plugin", "union-types", "k2"))
         }
     }
 }
