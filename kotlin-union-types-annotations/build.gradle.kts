@@ -3,7 +3,6 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 plugins {
     kotlin("multiplatform")
     alias(libs.plugins.mavenPublishing)
-    signing
 }
 
 kotlin {
@@ -42,40 +41,30 @@ kotlin {
 version = libs.versions.unionTypes.get()
 group = "io.github.kochkaev.kotlin.uniontypes"
 
-publishing {
-    publications.withType<MavenPublication> {
-        groupId = group.toString()
-        version = version.toString()
+mavenPublishing {
+    publishToMavenCentral(automaticRelease = true)
+    signAllPublications()
 
-        pom {
-            name.set("Kotlin Union & Intersection Types Annotations")
-            description.set("Annotations for Union & Intersection Types FIR K2 Plugin")
-            url.set("https://github.com/kochkaev/kotlin-union-types")
-            licenses {
-                license {
-                    name.set("The Apache License, Version 2.0")
-                    url.set("https://raw.githubusercontent.com/kochkaev/kotlin-union-types/refs/heads/master/LICENSE")
-                }
-            }
-            developers {
-                developer {
-                    id.set("kochkaev")
-                    name.set("Dmitrii Kochkaev")
-                }
-            }
-            scm {
-                connection.set("scm:git:git://github.com/kochkaev/kotlin-union-types.git")
-                    developerConnection.set("scm:git:ssh://github.com/kochkaev/kotlin-union-types.git")
-                url.set("https://github.com/kochkaev/kotlin-union-types")
+    pom {
+        name.set("Kotlin Union & Intersection Types Annotations")
+        description.set("Annotations for Union & Intersection Types FIR K2 Plugin")
+        url.set("https://github.com/kochkaev/kotlin-union-types")
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("https://raw.githubusercontent.com/kochkaev/kotlin-union-types/refs/heads/master/LICENSE")
             }
         }
+        developers {
+            developer {
+                id.set("kochkaev")
+                name.set("Dmitrii Kochkaev")
+            }
+        }
+        scm {
+            connection.set("scm:git:git://github.com/kochkaev/kotlin-union-types.git")
+                developerConnection.set("scm:git:ssh://github.com/kochkaev/kotlin-union-types.git")
+            url.set("https://github.com/kochkaev/kotlin-union-types")
+        }
     }
-
-    repositories {
-        mavenCentral()
-    }
-}
-
-signing {
-    sign(publishing.publications)
 }
