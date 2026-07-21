@@ -4,7 +4,6 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
-import org.jetbrains.kotlin.fir.declarations.FirDeclaration
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.getSuperTypes
@@ -27,7 +26,7 @@ import org.jetbrains.kotlin.types.model.safeSubstitute
 class UnionConeType private constructor(
     val rawType: ConeKotlinType,
     val substitutor: TypeSubstitutorMarker? = null,
-    val declaration: FirDeclaration? = null,
+    val declaration: DeclarationInfo? = null,
     val unionOverride: List<ConeKotlinType>? = null,
 ) {
     context(context: CheckerContext)
@@ -37,7 +36,7 @@ class UnionConeType private constructor(
     companion object {
         context(context: CheckerContext, reporter: DiagnosticReporter?)
         fun ConeKotlinType.union(
-            declaration: FirDeclaration? = null,
+            declaration: DeclarationInfo? = null,
             substitutor: TypeSubstitutorMarker? = null,
             unionOverride: List<ConeKotlinType>? = null,
         ) = UnionConeType(this, substitutor, declaration, unionOverride).apply {
@@ -46,7 +45,7 @@ class UnionConeType private constructor(
 
         context(context: CheckerContext, reporter: DiagnosticReporter?)
         fun builder(
-            declaration: FirDeclaration? = null,
+            declaration: DeclarationInfo? = null,
             substitutor: TypeSubstitutorMarker? = null,
             autoExpand: Boolean = true,
         ) = { coneType: ConeKotlinType -> coneType.union(declaration, substitutor).let {

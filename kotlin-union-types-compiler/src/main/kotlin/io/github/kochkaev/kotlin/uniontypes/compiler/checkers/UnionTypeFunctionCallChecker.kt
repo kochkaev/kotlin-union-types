@@ -4,6 +4,7 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompareVararg
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.createUniversalSubstitutor
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import org.jetbrains.kotlin.AbstractKtSourceElement
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
@@ -30,7 +31,7 @@ object UnionTypeFunctionCallChecker : FirFunctionCallChecker(MppCheckerKind.Comm
         val substitutor = expression.createUniversalSubstitutor()
 
         val unionBuilder = UnionConeType.builder(
-            declaration = declaration,
+            declaration = declaration?.info(),
             substitutor = substitutor,
         )
 

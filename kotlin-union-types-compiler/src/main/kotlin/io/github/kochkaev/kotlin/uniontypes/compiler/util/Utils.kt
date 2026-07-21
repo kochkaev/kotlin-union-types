@@ -122,7 +122,7 @@ internal fun unwrapTypeParameters(
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun List<FirAnnotation>.unwrapOrEmptyOrNullIfError(
-    declaration: FirDeclaration? = null,
+    declaration: DeclarationInfo? = null,
     recursive: Boolean = false,
     simpleClassId: ClassId,
     advancedClassId: ClassId,
@@ -138,18 +138,18 @@ internal fun List<FirAnnotation>.unwrapOrEmptyOrNullIfError(
 }
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun List<FirAnnotation>.unwrapUnionOrEmptyOrNullIfError(
-    declaration: FirDeclaration? = null,
+    declaration: DeclarationInfo? = null,
     recursive: Boolean = false,
 ): List<ConeKotlinType>? = unwrapOrEmptyOrNullIfError(declaration, recursive, UNION_ANNOTATION_CLASS_ID, UNION_ADV_ANNOTATION_CLASS_ID)
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun List<FirAnnotation>.unwrapIntersectionOrEmptyOrNullIfError(
-    declaration: FirDeclaration? = null,
+    declaration: DeclarationInfo? = null,
     recursive: Boolean = false,
 ): List<ConeKotlinType>? = unwrapOrEmptyOrNullIfError(declaration, recursive, INTERSECTION_ANNOTATION_CLASS_ID, INTERSECTION_ADV_ANNOTATION_CLASS_ID)
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun FirAnnotation.unwrapOrEmptyOrNullIfError(
-    declaration: FirDeclaration? = null,
+    declaration: DeclarationInfo? = null,
     recursive: Boolean = false,
     simpleClassId: ClassId,
     advancedClassId: ClassId,

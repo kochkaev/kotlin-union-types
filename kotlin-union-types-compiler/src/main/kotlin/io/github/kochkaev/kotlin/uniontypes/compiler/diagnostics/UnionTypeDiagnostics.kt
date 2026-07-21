@@ -24,10 +24,11 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
     val TYPE_MISMATCH by error2<PsiElement, UnionContextPair, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
     val INVALID_SUPERTYPE_FOR_UNION_TYPE by error2<PsiElement, UnionContextPair, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
 
-    val UNREACHABLE_WHEN_BRANCH by warning1<PsiElement, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
-    val CAST_WILL_ALWAYS_FAIL by error1<PsiElement, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
-    val USELESS_CAST by warning1<PsiElement, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
-    val UNSAFE_UNION_TYPE_CAST by warning1<PsiElement, Pair<Collection<UnionConeType>, CheckerContext>>(SourceElementPositioningStrategies.DEFAULT)
+    val UNREACHABLE_WHEN_BRANCH by warning0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val CAST_WILL_ALWAYS_FAIL by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val CHECK_FOR_INSTANCE_IS_ALWAYS_FALSE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val USELESS_CAST by warning0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val UNSAFE_CAST by warning2<PsiElement, UnionContextPair, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
 
     val EXTENSION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val UNION_TYPE_ON_CONTEXT_PARAMETER by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
@@ -60,23 +61,25 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
 
                     put(
                         factory = UNREACHABLE_WHEN_BRANCH,
-                        message = "Unreachable branch: type {0} is not part of the union type",
-                        rendererA = TYPE_WITH_UNIONS
+                        message = "Unreachable 'when' branch",
                     )
                     put(
                         factory = CAST_WILL_ALWAYS_FAIL,
-                        message = "Cast will always fail: type {0} is not part of the union type.",
-                        rendererA = TYPE_WITH_UNIONS
+                        message = "This cast can never succeed.",
+                    )
+                    put(
+                        factory = CHECK_FOR_INSTANCE_IS_ALWAYS_FALSE,
+                        message = "Check for instance is always 'false'.",
                     )
                     put(
                         factory = USELESS_CAST,
-                        message = "Useless cast: type {0} is not part of the union type and the cast will always return null.",
-                        rendererA = TYPE_WITH_UNIONS
+                        message = "This cast can never succeed.",
                     )
                     put(
-                        factory = UNSAFE_UNION_TYPE_CAST,
-                        message = "Unsafe cast: this value can also be of type(s) {0}.",
-                        rendererA = UNION_OF_TYPES
+                        factory = UNSAFE_CAST,
+                        message = "Unsafe cast of {0} to {1}",
+                        rendererA = TYPE_WITH_UNIONS,
+                        rendererB = TYPE_WITH_UNIONS,
                     )
 
                     put(

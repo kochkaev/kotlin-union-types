@@ -4,6 +4,7 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.getUnionAnnotations
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
@@ -23,7 +24,7 @@ object UnionTypeClassDeclarationChecker : FirClassChecker(MppCheckerKind.Common)
         val substitutor = typeContext.createSubstitutorForSuperTypes(declaration.defaultType())
 
         val unionBuilder = UnionConeType.builder(
-            declaration = declaration,
+            declaration = declaration.info(),
         )
 
         declaration.superTypeRefs.forEach { superTypeRef ->

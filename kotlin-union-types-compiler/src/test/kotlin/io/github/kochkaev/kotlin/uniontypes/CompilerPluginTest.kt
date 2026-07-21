@@ -437,7 +437,6 @@ class UnionAndIntersectionInteractionTests : BaseCompilerPluginTest() {
     }
 }
 
-// TODO: not implemented yet
 class CastAndWhenTests : BaseCompilerPluginTest() {
     @Test
     fun `should warn on unreachable when branch`() {
@@ -449,7 +448,7 @@ class CastAndWhenTests : BaseCompilerPluginTest() {
                     is Int -> {} // Unreachable
                 }
             }
-        """, warningMessage = "Unreachable branch")
+        """, shouldFail = true, errorMessage = "Check for instance is always 'false'.")
     }
 
     @Test
@@ -459,7 +458,7 @@ class CastAndWhenTests : BaseCompilerPluginTest() {
                 val x: @Union(String::class) Any = "a"
                 val y = x as Int
             }
-        """, shouldFail = true, errorMessage = "Cast will always fail")
+        """, shouldFail = true, errorMessage = "This cast can never succeed.")
     }
 
     @Test
@@ -469,7 +468,7 @@ class CastAndWhenTests : BaseCompilerPluginTest() {
                 val x: @Union(String::class) Any = "a"
                 val y = x as? Int
             }
-        """, warningMessage = "Useless cast")
+        """, warningMessage = "This cast can never succeed.")
     }
 
     @Test

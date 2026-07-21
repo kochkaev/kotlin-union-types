@@ -2,6 +2,7 @@ package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
@@ -24,7 +25,7 @@ object UnionTypeWhenExpressionChecker : FirWhenExpressionChecker(MppCheckerKind.
         val declaration = expression.toResolvedCallableSymbol(context.session)?.fir ?: return
 
         val unionBuilder = UnionConeType.builder(
-            declaration = declaration,
+            declaration = declaration.info(),
         )
 
         val subjectVariableSymbol = subjectVariable.symbol
@@ -32,16 +33,18 @@ object UnionTypeWhenExpressionChecker : FirWhenExpressionChecker(MppCheckerKind.
 
         for (branch in expression.branches) {
             val condition = branch.condition
-            if (condition !is FirTypeOperatorCall || condition.operation != FirOperation.IS) continue
+            if (condition !is FirTypeOperatorCall) continue
+            val operation = condition.operation
+            val inverse = operation == FirOperation.NOT_IS
+            if (operation != FirOperation.IS && !inverse) continue
 
             val checkedType = (condition.conversionTypeRef as? FirResolvedTypeRef)?.coneType?.let { unionBuilder(it) } ?: return
             val isReachable = targetType.isCompatible(checkedType)
 
-            if (!isReachable) {
+            if (isReachable == inverse) {
                 reporter.reportOn(
                     source = condition.conversionTypeRef.source,
                     factory = UnionTypeErrors.UNREACHABLE_WHEN_BRANCH,
-                    a = checkedType to context,
                 )
             }
         }

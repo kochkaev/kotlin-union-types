@@ -2,6 +2,7 @@ package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.unwrapTypeAliasOrNull
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -26,7 +27,7 @@ object UnionTypeSupertypeChecker : FirTypeRefChecker(MppCheckerKind.Common) {
         if (typeRef !is FirResolvedTypeRef) return
 
         val unionBuilder = UnionConeType.builder(
-            declaration = context.containingDeclarations.last().fir,
+            declaration = context.containingDeclarations.last().fir.info(),
         )
 
         val annotatedType = unionBuilder(typeRef.coneType)

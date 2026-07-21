@@ -3,6 +3,7 @@ package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.intersectUnions
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
@@ -23,7 +24,7 @@ object UnionTypeFunctionDeclarationChecker : FirFunctionChecker(MppCheckerKind.C
     context(context: CheckerContext, reporter: DiagnosticReporter)
     override fun check(declaration: FirFunction) {
         val unionBuilder = UnionConeType.builder(
-            declaration = declaration,
+            declaration = declaration.info(),
         )
 
         // Check extension function
