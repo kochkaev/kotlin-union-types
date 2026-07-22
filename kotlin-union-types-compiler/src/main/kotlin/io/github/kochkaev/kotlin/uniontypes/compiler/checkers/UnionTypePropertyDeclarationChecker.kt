@@ -81,7 +81,7 @@ object UnionTypePropertyDeclarationChecker : FirPropertyChecker(MppCheckerKind.C
             if (mathBaseType && length > 0) {
                 val targetType =
                     if (length == 1) baseReturnTypes.first()
-                    else baseReturnTypes.intersectUnions(unionBuilder)
+                    else baseReturnTypes.intersectUnions(unionBuilder.with(skipValidCheck = true))
                 checkCompare(
                     target = targetType,
                     other = derivedReturnType,

@@ -1,5 +1,6 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics
 
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionBuilder
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.diagnostics.*
@@ -11,10 +12,9 @@ import org.jetbrains.kotlin.fir.renderer.ConeIdRenderer
 import org.jetbrains.kotlin.fir.renderer.ConeIdShortRenderer
 import org.jetbrains.kotlin.fir.renderer.ConeTypeRendererForReadability
 import org.jetbrains.kotlin.fir.types.ConeFlexibleType
-import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.ConeIntersectionType
 import org.jetbrains.kotlin.fir.types.ConeSimpleKotlinType
 import org.jetbrains.kotlin.fir.types.isMarkedNullable
-import org.jetbrains.kotlin.fir.types.renderReadable
 import org.jetbrains.kotlin.types.model.TypeConstructorMarker
 
 typealias UnionContextPair = Pair<UnionConeType, CheckerContext>
@@ -37,6 +37,10 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
     val INTERSECTION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
 
     val TYPE_PARAMETER_NOT_FOUND by error1<PsiElement, String>(SourceElementPositioningStrategies.DEFAULT)
+
+    val INVALID_UNION_OF_MEMBERS by error2<PsiElement, UnionContextPair, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
+    val INVALID_INTERSECTION_OF_MEMBERS by error2<PsiElement, UnionContextPair, UnionContextPair>(SourceElementPositioningStrategies.DEFAULT)
+
 
     override fun getRendererFactory(): BaseDiagnosticRendererFactory {
         return object : BaseDiagnosticRendererFactory() {
@@ -103,11 +107,23 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                         message = "An @Intersection/@IntersectionAdv annotation cannot be applied to a union type."
                     )
 
-
                     put(
                         factory = TYPE_PARAMETER_NOT_FOUND,
                         message = "Type parameter {0} not found",
                         rendererA = Renderers.TO_STRING
+                    )
+
+                    put(
+                        factory = INVALID_UNION_OF_MEMBERS,
+                        message = "The union of all members ({0}) must be a subtype of or equivalent to the base type ({1}).",
+                        rendererA = TYPE_WITH_UNIONS,
+                        rendererB = TYPE_WITH_UNIONS,
+                    )
+                    put(
+                        factory = INVALID_INTERSECTION_OF_MEMBERS,
+                        message = "The intersection of all members ({0}) must be a subtype of or equivalent to the base type ({1}).",
+                        rendererA = TYPE_WITH_UNIONS,
+                        rendererB = TYPE_WITH_UNIONS,
                     )
                 } }
             }
@@ -115,25 +131,15 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
     }
 }
 object UnionTypeDiagnosticRenderers {
-    val TYPE = Renderer<Pair<ConeKotlinType, CheckerContext>> { (type: ConeKotlinType, context: CheckerContext) ->
-        type.renderReadable()
-    }
     val TYPE_WITH_UNIONS = Renderer<Pair<UnionConeType, CheckerContext>> { (type: UnionConeType, context: CheckerContext) ->
         with(context) {
             type.renderReadable()
         }
     }
-    val UNION_OF_TYPES = Renderer<Pair<Collection<UnionConeType>, CheckerContext>> { (collection: Collection<UnionConeType>, context: CheckerContext) ->
-        collection.joinToString(" | ") { with (context) {
-            it.renderReadable()
-        } }
-    }
     context(context: CheckerContext)
     fun UnionConeType.renderReadable(preRenderedConstructors: Map<TypeConstructorMarker, String>? = null): String {
         val builder = StringBuilder()
-        val renderer = with(null as? DiagnosticReporter) {
-            ConeTypeRendererWithUnion(context, builder, preRenderedConstructors, toBuilder()) { ConeIdShortRenderer() }
-        }
+        val renderer = ConeTypeRendererWithUnion(context, builder, preRenderedConstructors, toBuilder(skipValidCheck = true)) { ConeIdShortRenderer() }
         renderer.render(this)
         return builder.toString()
     }
@@ -142,32 +148,43 @@ open class ConeTypeRendererWithUnion (
     val context: CheckerContext,
     builder: StringBuilder,
     preRenderedConstructors: Map<TypeConstructorMarker, String>? = null,
-    val unionBuilder: (ConeKotlinType) -> UnionConeType =
-        with(context) { with(null as DiagnosticReporter?) { UnionConeType.builder() } },
+    val unionBuilder: UnionBuilder = UnionConeType.builder(skipValidCheck = true),
     idRendererCreator: () -> ConeIdRenderer,
 ): ConeTypeRendererForReadability(builder, preRenderedConstructors, idRendererCreator) {
-
-    open fun render(
-        union: UnionConeType,
-        unionSeparator: String = " | ",
-        nullabilityMarker: String = withContext { if (union.thisType !is ConeFlexibleType && union.thisType.isMarkedNullable) "?" else "" },
-    ) = withContext {
-        union.unionOrThis
-            .filterIsInstance<ConeSimpleKotlinType>()
-            .fold(false) { notFirstIteration, type ->
-                if (notFirstIteration) builder.append(unionSeparator)
-                super.render(type, nullabilityMarker)
-                true
-            }
-    }
-    override fun renderSimpleType(type: ConeSimpleKotlinType, nullabilityMarker: String) {
+    override fun renderSimpleType(type: ConeSimpleKotlinType, nullabilityMarker: String) = withContext {
         val union = unionBuilder(type)
+        render(union, nullabilityMarker = nullabilityMarker)
+    }
+    fun render(
+        type: UnionConeType,
+        unionSeparator: String = " | ",
+        nullabilityMarker: String = withContext { if (type.thisType !is ConeFlexibleType && type.thisType.isMarkedNullable) "?" else "" },
+    ) {
         withContext {
-            if (union.isDeclaredUnionType || union.isUnionOverrode) render(union)
-            else super.renderSimpleType(type, nullabilityMarker)
+            val raw = type.thisType
+            val isEmptyUnionOverrode = type.unionOverride?.isEmpty() == true
+            val isNotEmptyUnionOverrode = type.unionOverride?.isEmpty() == false
+            when {
+                type.isDeclaredUnionType && !isEmptyUnionOverrode || isNotEmptyUnionOverrode -> {
+                    type.unionWrapped
+                        .fold(false) { notFirstIteration, type ->
+                            if (notFirstIteration) builder.append(unionSeparator)
+                            super.render(type.thisType, nullabilityMarker)
+                            true
+                        }
+                    return@withContext
+                }
+                raw is ConeIntersectionType -> {
+                    super.render(raw)
+                    return@withContext
+                }
+                raw is ConeSimpleKotlinType -> super.renderSimpleType(raw, nullabilityMarker)
+                else -> super.render(raw, nullabilityMarker)
+            }
         }
     }
 
+    @Suppress("RedundantWith")
     fun <T> withContext(block: context(CheckerContext, DiagnosticReporter?) () -> T): T =
         with(context) { with(null as DiagnosticReporter?) { block() } }
 }

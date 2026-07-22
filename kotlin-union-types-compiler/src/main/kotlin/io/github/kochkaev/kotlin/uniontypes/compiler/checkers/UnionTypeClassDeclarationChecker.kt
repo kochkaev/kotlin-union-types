@@ -20,8 +20,6 @@ object UnionTypeClassDeclarationChecker : FirClassChecker(MppCheckerKind.Common)
     @OptIn(SymbolInternals::class)
     context(context: CheckerContext, reporter: DiagnosticReporter)
     override fun check(declaration: FirClass) {
-        val typeContext = context.session.typeContext
-        val substitutor = typeContext.createSubstitutorForSuperTypes(declaration.defaultType())
 
         val unionBuilder = UnionConeType.builder(
             declaration = declaration.info(),
@@ -61,11 +59,9 @@ object UnionTypeClassDeclarationChecker : FirClassChecker(MppCheckerKind.Common)
                     if (actualBounds.isEmpty()) return@forEachIndexed
 
                     typeParameterSymbol.resolvedBounds.forEach { bound ->
-                        val boundWrapped= unionBuilder(bound.coneType)
-                        if (!boundWrapped.isUnionType) return@forEach
                         actualBounds.forEach {
                             checkCompare(
-                                target = boundWrapped,
+                                target = unionBuilder(bound.coneType),
                                 other = unionBuilder(it.first),
                                 source = it.second,
                             )

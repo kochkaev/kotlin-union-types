@@ -10,7 +10,6 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.classKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.containingClassLookupTag
-import org.jetbrains.kotlin.fir.declarations.FirDeclaration
 import org.jetbrains.kotlin.fir.declarations.FirTypeParameterRefsOwner
 import org.jetbrains.kotlin.fir.declarations.utils.modality
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
@@ -259,18 +258,21 @@ fun checkCompareVararg(
 }
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
+fun UnionConeType.intersectUnions(): UnionConeType =
+    fullyResolvedUnionWrapped.plus(this).intersectUnions(this.toBuilder(skipValidCheck = true))
+context(context: CheckerContext, reporter: DiagnosticReporter?)
 fun List<UnionConeType>.intersectUnions(
-    builder: (ConeKotlinType) -> UnionConeType,
+    builder: UnionBuilder,
 ): UnionConeType {
     val session = context.session
     val typeContext = session.typeContext
-    if (isEmpty()) return builder(typeContext.anyType())
+    if (isEmpty()) return builder(typeContext.anyType(), skipValidCheck = true)
     else if (size == 1) return this.first()
 
     val newBase = ConeTypeIntersector.intersectTypes(typeContext, this.map { it.expandedType })
     val new = builder(newBase)
     val intersected = reduce { accumulator, nextParent ->
-        new.withOverride(intersectUnions(accumulator, nextParent))
+        new.withUnionOverride(intersectUnions(accumulator, nextParent))
     }
 
     return intersected
@@ -324,8 +326,8 @@ internal fun ConeKotlinType.intersect(other: ConeKotlinType) =
 
 context(context: CheckerContext, reporter: DiagnosticReporter)
 fun checkCompare(
-    target: UnionConeType,
-    other: UnionConeType,
+    target: UnionConeType?,
+    other: UnionConeType?,
     source: AbstractKtSourceElement?,
     error: (DiagnosticReporter, AbstractKtSourceElement?, UnionConeType, UnionConeType) -> Unit = { reporter, source, target, other ->
         reporter.reportOn(
@@ -337,7 +339,13 @@ fun checkCompare(
     },
     invariance: Boolean = false,
 ) {
-    var matches = target.isCompatible(other, false)
+    if (target == null || other == null || !target.isValid || !other.isValid) return
+    val rawTarget = target.whileDo({ it.cachedUnexpanded != null }) { it.cachedUnexpanded!! }
+    val rawOther = other.whileDo({ it.cachedUnexpanded != null }) { it.cachedUnexpanded!! }
+    if (!rawOther.thisType.isSubtypeOf(rawTarget.thisType, context.session)) return
+
+    val skipSubtypeCheck = target == rawTarget && other == rawOther
+    var matches = target.isCompatible(other, checkNullability = false, skipSubtypeCheck)
     val nullabilityMatches = target.isNullable <= other.isNullable
 
     if (matches && !nullabilityMatches) return
@@ -346,6 +354,11 @@ fun checkCompare(
     if (!matches) error(reporter, source, target, other)
 }
 
+fun <T> T.whileDo(condition: (T) -> Boolean, block: (T) -> T): T {
+    var current = this
+    while (condition(current)) { current = block(current) }
+    return current
+}
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 fun unionMatches(base: List<UnionConeType>, compareTo: List<UnionConeType>) =

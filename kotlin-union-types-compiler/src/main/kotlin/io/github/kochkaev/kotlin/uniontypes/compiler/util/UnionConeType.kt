@@ -22,12 +22,14 @@ import org.jetbrains.kotlin.fir.types.typeContext
 import org.jetbrains.kotlin.types.model.TypeSubstitutorMarker
 import org.jetbrains.kotlin.types.model.TypeSystemInferenceExtensionContext
 import org.jetbrains.kotlin.types.model.safeSubstitute
+import org.jetbrains.kotlin.utils.addToStdlib.ifNotEmpty
 
 class UnionConeType private constructor(
     val rawType: ConeKotlinType,
     val substitutor: TypeSubstitutorMarker? = null,
     val declaration: DeclarationInfo? = null,
     val unionOverride: List<ConeKotlinType>? = null,
+    val intersectionOverride: List<ConeKotlinType>? = null,
 ) {
     context(context: CheckerContext)
     private val typeContext: TypeSystemInferenceExtensionContext
@@ -39,18 +41,23 @@ class UnionConeType private constructor(
             declaration: DeclarationInfo? = null,
             substitutor: TypeSubstitutorMarker? = null,
             unionOverride: List<ConeKotlinType>? = null,
-        ) = UnionConeType(this, substitutor, declaration, unionOverride).apply {
-            checkValid()
+            intersectionOverride: List<ConeKotlinType>? = null,
+            autoExpand: Boolean = true,
+            skipValidCheck: Boolean = false,
+            nullIfNotValid: Boolean = false,
+        ) = UnionConeType(this, substitutor, declaration, unionOverride, intersectionOverride).let {
+            if (!skipValidCheck) {
+                if (!it.isValid && nullIfNotValid) return@let null
+            }
+            if (autoExpand) it.withIntersectionOrThis else it
         }
 
-        context(context: CheckerContext, reporter: DiagnosticReporter?)
         fun builder(
             declaration: DeclarationInfo? = null,
             substitutor: TypeSubstitutorMarker? = null,
             autoExpand: Boolean = true,
-        ) = { coneType: ConeKotlinType -> coneType.union(declaration, substitutor).let {
-            if (autoExpand) it.withIntersectionOrThis else it
-        } }
+            skipValidCheck: Boolean = false,
+        ) = UnionBuilder.of(declaration, substitutor, autoExpand, skipValidCheck)
     }
 
     private var _cachedUnexpanded: UnionConeType? = null
@@ -135,6 +142,13 @@ class UnionConeType private constructor(
                 aac
             }
             _resolvedUnion!!
+        }
+    private var _resolvedUnionWrapped: List<UnionConeType>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val resolvedUnionWrapped: List<UnionConeType>
+        get() = _resolvedUnionWrapped.elseIfNull {
+            _resolvedUnionWrapped = resolvedUnion.map { copyTo(it) }
+            _resolvedUnionWrapped!!
         }
     private var _fullyResolvedUnion: List<ConeKotlinType>? = null
     context(context: CheckerContext, reporter: DiagnosticReporter?)
@@ -223,7 +237,8 @@ class UnionConeType private constructor(
             _isBroken!!
         }
 
-    val isUnionOverrode: Boolean = !unionOverride.isNullOrEmpty()
+    val isUnionOverrode: Boolean = unionOverride != null
+    val isIntersectionOverrode: Boolean = intersectionOverride != null
 
     private var _intersectionAnnotations: List<FirAnnotation>? = null
     context(context: CheckerContext)
@@ -257,18 +272,25 @@ class UnionConeType private constructor(
             _declaredIntersection = intersectionRaw.map { substituteOrSelf(it) }
             _declaredIntersection!!
         }
-    private var _declaredIntersectionWrapped: List<UnionConeType>? = null
+    private var _intersection: List<ConeKotlinType>? = null
     context(context: CheckerContext, reporter: DiagnosticReporter?)
-    val declaredIntersectionWrapped: List<UnionConeType>
-        get() = _declaredIntersectionWrapped.elseIfNull {
-            _declaredIntersectionWrapped = declaredIntersection.map { copyTo(it) }
-            _declaredIntersectionWrapped!!
+    val intersection: List<ConeKotlinType>
+        get() = _intersection.elseIfNull {
+            _intersection = intersectionOverride ?: declaredIntersection
+            _intersection!!
+        }
+    private var _intersectionWrapped: List<UnionConeType>? = null
+    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    val intersectionWrapped: List<UnionConeType>
+        get() = _intersectionWrapped.elseIfNull {
+            _intersectionWrapped = intersection.map { copyTo(it) }
+            _intersectionWrapped!!
         }
     private var _resolvedIntersection: List<ConeKotlinType>? = null
     context(context: CheckerContext, reporter: DiagnosticReporter?)
     val resolvedIntersection: List<ConeKotlinType>
         get() = _resolvedIntersection.elseIfNull {
-            _resolvedIntersection = resolved?.declaredIntersection ?: listOf()
+            _resolvedIntersection = resolved?.intersection ?: listOf()
             _resolvedIntersection!!
         }
     private var _resolvedIntersectionWrapped: List<UnionConeType>? = null
@@ -286,7 +308,7 @@ class UnionConeType private constructor(
         get() = _withIntersection.elseIfNull {
             _withIntersection = arrayOf(
                 if (resolvedIntersection.isNotEmpty()) {
-                    resolvedIntersectionWrapped.intersectUnions(toBuilder()).apply {
+                    resolvedIntersectionWrapped.plus(this).intersectUnions(toBuilder(skipValidCheck = true)).apply {
                         _cachedUnexpanded = this@UnionConeType
                     }
                 } else null
@@ -302,13 +324,14 @@ class UnionConeType private constructor(
     fun isCompatible(
         that: UnionConeType,
         checkNullability: Boolean = false,
+        skipSubtypeCheck: Boolean = false
     ): Boolean = with(context) {
         if (isBroken) return true
 
         val target = thisType
         val other = that.thisType
         val isTypeParameter = target is ConeTypeParameterType
-        val isCompatible = other.isSubtypeOf(target, context.session)
+        val isCompatible = skipSubtypeCheck || other.isSubtypeOf(target, context.session)
         var genericsMatches = true
         var isInUnion = true
         val nullabilityMatches = if (checkNullability) isNullable <= that.isNullable else true
@@ -350,30 +373,61 @@ class UnionConeType private constructor(
         substitute(other, customSubstitutor) ?: other
 
     context(context: CheckerContext, reporter: DiagnosticReporter?)
-    fun copyTo(other: ConeKotlinType): UnionConeType = toBuilder().invoke(other)
+    fun copyTo(other: ConeKotlinType): UnionConeType = toBuilder(skipValidCheck = true).invoke(other)
+    fun toBuilder(autoExpand: Boolean = true, skipValidCheck: Boolean = false) = builder(declaration, substitutor, autoExpand, skipValidCheck)
     context(context: CheckerContext, reporter: DiagnosticReporter?)
-    fun toBuilder(autoExpand: Boolean = true) = builder(declaration, substitutor, autoExpand)
+    fun withUnionOverride(unionOverride: List<ConeKotlinType>?) =
+        toBuilder(skipValidCheck = true).invoke(rawType, unionOverride = unionOverride, intersectionOverride = intersectionOverride)
     context(context: CheckerContext, reporter: DiagnosticReporter?)
-    fun withOverride(unionOverride: List<ConeKotlinType>?) =
-        rawType.union(declaration, substitutor, unionOverride)
+    fun withIntersectionOverride(intersectionOverride: List<ConeKotlinType>?) =
+        toBuilder(skipValidCheck = true).invoke(rawType, unionOverride = unionOverride, intersectionOverride = intersectionOverride)
 
+    private var _isValid: Boolean? = null
     context(context: CheckerContext, reporter: DiagnosticReporter?)
-    fun checkValid(): Boolean {
-        val isIntersection = resolvedIntersection.isNotEmpty()
-        if (isUnionType && isIntersection) {
-            reporter?.reportOn(
-                source = declaration?.source,
-                factory = UnionTypeErrors.INTERSECTION_AND_UNION_AT_SAME_TIME
-            )
-            return false
+    val isValid: Boolean
+        get() = _isValid.elseIfNull {
+            val isIntersection = resolvedIntersection.isNotEmpty()
+            if (isUnionType && isIntersection) {
+                reporter?.reportOn(
+                    source = declaration?.source,
+                    factory = UnionTypeErrors.INTERSECTION_AND_UNION_AT_SAME_TIME
+                )
+                _isValid = false
+                return@elseIfNull false
+            }
+            if (isIntersection && resolved?.rawAbbreviated?.isUnionType == true) {
+                reporter?.reportOn(
+                    source = declaration?.source,
+                    factory = UnionTypeErrors.INTERSECTION_ON_UNION_TYPE
+                )
+                _isValid = false
+                return@elseIfNull false
+            }
+
+            val intersected = intersectionWrapped.ifNotEmpty { intersectUnions(toBuilder(skipValidCheck = true)).withUnionOverride(listOf()) }
+            if (intersected?.let { isCompatible(it) } == false) {
+                reporter?.reportOn(
+                    source = declaration?.source,
+                    factory = UnionTypeErrors.INVALID_INTERSECTION_OF_MEMBERS,
+                    a = intersected to context,
+                    b = this.withIntersectionOverride(listOf()) to context
+                )
+                _isValid = false
+                return@elseIfNull false
+            }
+            val ununionized = if (union.isNotEmpty()) withUnionOverride(listOf()) else null
+            if (ununionized != null && !resolvedUnionWrapped.all { ununionized.isCompatible(it) }) {
+                reporter?.reportOn(
+                    source = declaration?.source,
+                    factory = UnionTypeErrors.INVALID_UNION_OF_MEMBERS,
+                    a = this to context,
+                    b = ununionized to context
+                )
+                _isValid = false
+                return@elseIfNull false
+            }
+
+            _isValid = true
+            return@elseIfNull true
         }
-        if (isIntersection && resolved?.rawAbbreviated?.isUnionType == true) {
-           reporter?.reportOn(
-                source = declaration?.source,
-                factory = UnionTypeErrors.INTERSECTION_ON_UNION_TYPE
-            )
-            return false
-        }
-        return true
-    }
 }

@@ -25,7 +25,7 @@ dependencies {
 //    freeCompilerArgs.set(listOf("-Xcontext-parameters"))
 //}
 
-tasks.test {
+tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }
 

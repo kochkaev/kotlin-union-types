@@ -17,7 +17,7 @@ import org.jetbrains.kotlin.fir.types.FirResolvedTypeRef
 
 object UnionTypeWhenExpressionChecker : FirWhenExpressionChecker(MppCheckerKind.Common) {
 
-
+    // Unnecessary checker
     @OptIn(SymbolInternals::class)
     context(context: CheckerContext, reporter: DiagnosticReporter)
     override fun check(expression: FirWhenExpression) {

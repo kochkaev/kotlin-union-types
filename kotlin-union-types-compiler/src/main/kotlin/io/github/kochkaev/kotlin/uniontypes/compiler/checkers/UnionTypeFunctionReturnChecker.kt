@@ -1,11 +1,9 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
-import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
-import io.github.kochkaev.kotlin.uniontypes.compiler.util.unionMatches
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
-import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
@@ -57,14 +55,20 @@ object UnionTypeFunctionReturnChecker : FirFunctionChecker(MppCheckerKind.Common
         body.acceptChildren(visitor)
 
         actualReturnTypes.forEach { (expression, actualType) ->
-            if (!actualType.isUnit && !unionMatches(returnType.fullyResolvedUnionWrappedOrThis, unionBuilder(actualType).fullyResolvedUnionWrappedOrThis)) {
-                reporter.reportOn(
-                    source = expression.source,
-                    factory = UnionTypeErrors.TYPE_MISMATCH,
-                    a = unionBuilder(actualType) to context,
-                    b = returnType to context
-                )
-            }
+            if (actualType.isUnit) return@forEach
+            checkCompare(
+                target = returnType,
+                other = unionBuilder(actualType),
+                source = expression.source,
+            )
+//            if (!actualType.isUnit && !unionMatches(returnType.fullyResolvedUnionWrappedOrThis, unionBuilder(actualType).fullyResolvedUnionWrappedOrThis)) {
+//                reporter.reportOn(
+//                    source = expression.source,
+//                    factory = UnionTypeErrors.TYPE_MISMATCH,
+//                    a = unionBuilder(actualType) to context,
+//                    b = returnType to context
+//                )
+//            }
         }
     }
 }

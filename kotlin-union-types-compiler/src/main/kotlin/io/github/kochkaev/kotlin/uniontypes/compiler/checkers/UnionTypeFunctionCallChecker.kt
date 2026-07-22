@@ -13,7 +13,6 @@ import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirFunctionCallChec
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirSpreadArgumentExpression
 import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
-import org.jetbrains.kotlin.fir.expressions.createConeSubstitutorFromTypeArguments
 import org.jetbrains.kotlin.fir.expressions.resolvedArgumentMapping
 import org.jetbrains.kotlin.fir.expressions.toResolvedCallableSymbol
 import org.jetbrains.kotlin.fir.scopes.impl.toConeType
@@ -41,7 +40,6 @@ object UnionTypeFunctionCallChecker : FirFunctionCallChecker(MppCheckerKind.Comm
             val actualType = unionBuilder(substitutor.substituteOrSelf(coneType))
             symbol.resolvedBounds.forEach { bound ->
                 val boundWrapped = unionBuilder(bound.coneType)
-                if (!boundWrapped.isUnionType) return@forEach
                 checkCompare(
                     target = boundWrapped,
                     other = actualType,
@@ -53,13 +51,11 @@ object UnionTypeFunctionCallChecker : FirFunctionCallChecker(MppCheckerKind.Comm
         // Check receiver
         val actualReceiver = expression.explicitReceiver?.resolvedType?.let { unionBuilder(it) }
         val expectedReceiver = symbol?.resolvedReceiverType?.let { substitutor.substituteOrSelf(it) }?.let { unionBuilder(it) }
-        if (actualReceiver != null && expectedReceiver != null) {
-            checkCompare(
-                target = expectedReceiver,
-                other = actualReceiver,
-                source = expression.source,
-            )
-        }
+        checkCompare(
+            target = expectedReceiver,
+            other = actualReceiver,
+            source = expression.source,
+        )
 
         // Check arguments
         argumentMapping.forEach { (argument, parameter) ->

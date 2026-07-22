@@ -481,3 +481,40 @@ class CastAndWhenTests : BaseCompilerPluginTest() {
         """, warningMessage = "Unsafe cast")
     }
 }
+
+class AnnotationValidationTests : BaseCompilerPluginTest() {
+    @Test
+    fun `should fail when union of members is not a subtype of the base type`() {
+        compile("""
+            val x: @Union(String::class, Int::class) CharSequence = "a"
+        """, shouldFail = true, errorMessage = "The union of all members")
+    }
+
+    @Test
+    fun `should fail with complex typealias when union of members is not a subtype`() {
+        compile("""
+            typealias MyUnion = @Union(String::class, Double::class) Any
+            val x: @Union(MyUnion::class, Int::class) CharSequence = 1
+        """, shouldFail = true, errorMessage = "The union of all members")
+    }
+
+    @Test
+    fun `should fail when intersection of members is not a subtype of the base type`() {
+        compile("""
+            interface A
+            interface B
+            class C: A
+            val x: @Intersection(A::class, B::class) C? = null
+        """, shouldFail = true, errorMessage = "The intersection of all members")
+    }
+
+    @Test
+    fun `should fail with complex typealias when intersection of members is not a subtype`() {
+        compile("""
+            interface A; interface B; interface C
+            class ImplA: A
+            typealias MyIntersection = @Intersection(A::class, B::class) Any
+            val x: @Intersection(MyIntersection::class, C::class) ImplA? = null
+        """, shouldFail = true, errorMessage = "The intersection of all members")
+    }
+}

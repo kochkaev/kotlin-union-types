@@ -46,7 +46,7 @@ object UnionTypeTypeOperatorCallChecker : FirTypeOperatorCallChecker(MppCheckerK
                     source = expression.conversionTypeRef.source,
                     factory = UnionTypeErrors.CAST_WILL_ALWAYS_FAIL,
                 )
-            } else if (!operandType.fullyResolvedUnionWrappedOrThis.intersectUnions(unionBuilder).isCompatible(conversionType)) {
+            } else if (!operandType.intersectUnions().isCompatible(conversionType)) {
                 reporter.reportOn(
                     source = expression.conversionTypeRef.source,
                     factory = UnionTypeErrors.UNSAFE_CAST,
