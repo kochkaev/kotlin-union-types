@@ -68,7 +68,7 @@ class TypeAliasTests : BaseCompilerPluginTest() {
     @Test fun `should expand union when typealias is used in annotation`() = compile("$commonSource\ntypealias B = @Union(A::class, Float::class) Any\nfun main() { val v: B = 7.8f }")
     @Test fun `should constrain union when annotation is on a union typealias`() = compile("$commonSource\ntypealias C = @Union(String::class, Int::class) A\nfun main() { val v: C = 123 }")
     @Test fun `should fail when assigning a filtered-out type`() = compile("$commonSource\ntypealias C = @Union(String::class, Int::class) A\nfun main() { val v: C = 456L }", shouldFail = true, errorMessage = "Type mismatch")
-    @Test fun `should fail if constraining type is not in the base union`() = compile("$commonSource\ntypealias D = @Union(String::class, Float::class) A", shouldFail = true, errorMessage = "is not a subtype of")
+    @Test fun `should fail if constraining type is not in the base union`() = compile("$commonSource\ntypealias D = @Union(String::class, Float::class) A", shouldFail = true, errorMessage = "The union of all members")
 }
 
 class AdvUnionTests : BaseCompilerPluginTest() {
@@ -272,11 +272,23 @@ class UnionAndIntersectionInteractionTests : BaseCompilerPluginTest() {
     }
 
     @Test
-    fun `should fail when @Intersection is applied to a Union typealias`() {
+    fun `should allow @Intersection to be applied to a Union typealias`() {
+        compile(
+            """
+            typealias U = @Union(Collection::class, Iterable::class) Any
+            val x: @IntersectionAdv(Type(type = List::class, generics = [Type(String::class)])) U = listOf("hello")
+        """
+        )
+    }
+
+    @Test
+    fun `should fail when intersection on union is not a subtype of the union's members intersection`() {
         compile("""
-            typealias U = @Union(String::class, Int::class) Any
-            val x: @Intersection(CharSequence::class) U = "hello"
-        """, shouldFail = true, errorMessage = "An @Intersection/@IntersectionAdv annotation cannot be applied to a union type.")
+            interface A
+            interface B
+            typealias U = @Union(A::class, B::class) Any
+            typealias I = @Intersection(CharSequence::class) U
+        """, shouldFail = true, errorMessage = "The intersection of all members")
     }
 
     @Test
@@ -299,9 +311,8 @@ class UnionAndIntersectionInteractionTests : BaseCompilerPluginTest() {
             interface B
             class C: A, B
             class D
-            class E
             typealias I = @Intersection(A::class, B::class) Any
-            val x: @Union(D::class) I = E()
+            val x: @Union(C::class) I = D()
         """, shouldFail = true, errorMessage = "Type mismatch")
     }
 

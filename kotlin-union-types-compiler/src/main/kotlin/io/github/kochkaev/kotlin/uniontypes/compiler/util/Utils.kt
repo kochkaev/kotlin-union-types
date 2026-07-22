@@ -259,14 +259,14 @@ fun checkCompareVararg(
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 fun UnionConeType.intersectUnions(): UnionConeType =
-    fullyResolvedUnionWrapped.plus(this).intersectUnions(this.toBuilder(skipValidCheck = true))
+    fullyResolvedUnionWrapped.plus(this).intersectUnions(this.toBuilder())
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 fun List<UnionConeType>.intersectUnions(
     builder: UnionBuilder,
 ): UnionConeType {
     val session = context.session
     val typeContext = session.typeContext
-    if (isEmpty()) return builder(typeContext.anyType(), skipValidCheck = true)
+    if (isEmpty()) return builder(typeContext.anyType())
     else if (size == 1) return this.first()
 
     val newBase = ConeTypeIntersector.intersectTypes(typeContext, this.map { it.expandedType })

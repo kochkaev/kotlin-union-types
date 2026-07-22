@@ -10,7 +10,7 @@ class UnionBuilder private constructor(
     val declaration: DeclarationInfo? = null,
     val substitutor: TypeSubstitutorMarker? = null,
     val autoExpand: Boolean = true,
-    val skipValidCheck: Boolean = false,
+    val skipValidCheck: Boolean = true,
 ) {
     context(context: CheckerContext, reporter: DiagnosticReporter?)
     operator fun invoke(
