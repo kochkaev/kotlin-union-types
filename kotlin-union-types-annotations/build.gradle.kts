@@ -27,7 +27,7 @@ kotlin {
     iosX64()
     iosArm64()
     iosSimulatorArm64()
-    macosX64() // Deprecated
+    @Suppress("DEPRECATION") macosX64()
     macosArm64()
 
     // Linux
