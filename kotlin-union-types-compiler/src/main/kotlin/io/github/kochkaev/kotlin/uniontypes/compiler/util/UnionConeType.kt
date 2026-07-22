@@ -192,7 +192,7 @@ class UnionConeType private constructor(
     val resolved: UnionConeType?
         get() = _resolved.elseIfNull {
             val resolved =
-                if (isDeclaredUnionType || isDeclaredIntersectionType || isUnionOverrode) this
+                if (isDeclaredUnionType || isDeclaredIntersectionType || isUnionOverrode || isIntersectionOverrode) this
                 else rawAbbreviated?.resolved
             _resolved = arrayOf(resolved)
             _resolved!!
@@ -386,7 +386,7 @@ class UnionConeType private constructor(
     context(context: CheckerContext, reporter: DiagnosticReporter?)
     val isValid: Boolean
         get() = _isValid.elseIfNull {
-            val isIntersection = resolvedIntersection.isNotEmpty()
+            val isIntersection = intersection.isNotEmpty()
             if (isUnionType && isIntersection) {
                 reporter?.reportOn(
                     source = declaration?.source,
