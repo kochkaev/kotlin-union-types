@@ -160,6 +160,16 @@ process<Int>(true)      // Compilation Error!
     // OK: The cast is permitted because `CharSequence` is a member of the union type.
     val y: CharSequence? = impl.produce() as? CharSequence
     ```
+3.  **Redundant Bounds in `where` Clauses**: Because the plugin cannot replace an annotated type with a true union type, the Kotlin compiler only sees the base type. If you try to apply multiple union type constraints with the same base type to a single type parameter in a `where` clause, the compiler will report a "Type parameter already has this bound" error.
+    ```kotlin
+    typealias StringOrInt = @Union(String::class, Int::class) Any
+    typealias StringOrBoolean = @Union(String::class, Boolean::class) Any
+
+    // Error: Type parameter 'T' already has this bound: Any
+    fun <T> process(value: T) where T : StringOrInt, T : StringOrBoolean {
+        // ...
+    }
+    ```
 
 ## Plugin-Specific Limitations
 

@@ -732,3 +732,143 @@ class TypeParameterComplexTests : BaseCompilerPluginTest() {
         """, shouldFail = true, errorMessage = "Type mismatch")
     }
 }
+
+class SuperComplexCasesTests : BaseCompilerPluginTest() {
+
+    @Test
+    fun `should handle deeply nested generics with type aliases`() {
+        compile("""
+            typealias StringList = List<String>
+            typealias IntSet = Set<Int>
+            typealias ComplexUnion = @UnionAdv(
+                Type(Map::class, generics = [Type(String::class), Type(StringList::class)]),
+                Type(List::class, generics = [Type(IntSet::class)])
+            ) Any
+
+            val x: ComplexUnion = mapOf("a" to listOf("b", "c"))
+            val y: ComplexUnion = listOf(setOf(1, 2))
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect deeply nested generics with type aliases`() {
+        compile("""
+            typealias StringList = List<String>
+            typealias IntSet = Set<Int>
+            typealias ComplexUnion = @UnionAdv(
+                Type(Map::class, generics = [Type(String::class), Type(StringList::class)]),
+                Type(List::class, generics = [Type(IntSet::class)])
+            ) Any
+
+            val x: ComplexUnion = mapOf("a" to listOf(1, 2))
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle multi-level inheritance with union type overrides`() {
+        compile("""
+            typealias U_S_I = @Union(String::class, Int::class) Any
+            typealias U_S_I_D = @Union(String::class, Int::class, Double::class) Any
+            
+            open class A {
+                open fun f(): U_S_I_D = "a"
+            }
+            open class B : A() {
+                override fun f(): U_S_I = 1
+            }
+            class C : B() {
+                override fun f(): @Union(String::class) Any = "c"
+            }
+        """)
+    }
+
+    @Test
+    fun `should fail on incorrect multi-level inheritance override`() {
+        compile(
+            """
+            typealias U_S_I = @Union(String::class, Int::class) Any
+            typealias U_S_I_D = @Union(String::class, Int::class, Double::class) Any
+
+            open class A {
+                open fun f(): U_S_I = 1
+            }
+            class B : A() {
+                override fun f(): U_S_I_D = 1.0
+            }
+        """, shouldFail = true, errorMessage = "Type mismatch"
+        )
+    }
+
+    @Test
+    fun `should handle complex intersection of union types`() {
+        compile("""
+            interface A; interface B; interface C
+            class ImplAB: A, B
+            class ImplBC: B, C
+
+            typealias U_AB_BC = @Union(ImplAB::class, ImplBC::class) Any
+            typealias I_B = @Intersection(B::class) Any
+            typealias ComplexIntersection = @Intersection(U_AB_BC::class, I_B::class) Any
+
+            fun <T : ComplexIntersection> process(value: T) {}
+
+            fun main() {
+                process(ImplAB())
+                process(ImplBC())
+            }
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type in complex intersection of union types`() {
+        compile("""
+            interface A; interface B; interface C
+            class ImplA: A
+            class ImplAB: A, B
+            class ImplBC: B, C
+
+            typealias U_AB_BC = @Union(ImplAB::class, ImplBC::class) Any
+            typealias I_B = @Intersection(B::class) Any
+            typealias ComplexIntersection = @Intersection(U_AB_BC::class, I_B::class) Any
+
+            fun <T : ComplexIntersection> process(value: T) {}
+
+            fun main() {
+                process(ImplA())
+            }
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle union types with star projection`() {
+        compile("""
+            typealias ListOrSet = @UnionAdv(
+                Type(List::class),
+                Type(Set::class)
+            ) Any
+
+            val x: ListOrSet = listOf("a", 1)
+            val y: ListOrSet = setOf(1.0, true)
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type with star projection`() {
+        compile("""
+            typealias ListOrSet = @UnionAdv(
+                Type(List::class),
+                Type(Set::class)
+            ) Any
+
+            val x: ListOrSet = mapOf(1 to "a")
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+    
+    @Test
+    fun `should fail on recursive type alias`() {
+        compile("""
+            typealias Recursive = @Union(Int::class, Recursive::class) Any
+            val x: Recursive = 1
+        """, shouldFail = true, errorMessage = "Recursive type aliases are not supported")
+    }
+}

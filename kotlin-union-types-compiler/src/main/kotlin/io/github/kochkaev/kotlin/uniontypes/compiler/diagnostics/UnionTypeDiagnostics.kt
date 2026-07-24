@@ -32,6 +32,7 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
     val TYPE_AND_TYPE_PARAMETER_AT_SAME_TIME by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val INTERSECTION_AND_UNION_AT_SAME_TIME by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val INTERSECTION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val RECURSIVE_TYPEALIAS by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
 
     val TYPE_PARAMETER_NOT_FOUND by error1<PsiElement, String>(SourceElementPositioningStrategies.DEFAULT)
 
@@ -97,6 +98,10 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                         factory = INTERSECTION_ON_UNION_TYPE,
                         message = "An @Intersection/@IntersectionAdv annotation cannot be applied to a union type."
                     )
+                    put(
+                        factory = RECURSIVE_TYPEALIAS,
+                        message = "Recursive type aliases are not supported"
+                    )
 
                     put(
                         factory = TYPE_PARAMETER_NOT_FOUND,
@@ -150,7 +155,7 @@ open class ConeTypeRendererWithUnion (
     ) {
         withContext {
             val type = if (expandTypeAliases) type.resolved ?: type else type
-            val raw = type.thisType
+            val raw = if (expandTypeAliases) type.expandedType else type.thisType
             val isNotEmptyUnionOverrode = type.isUnionOverrideNotEmpty
             val isEmptyUnionOverrode = type.isUnionOverrode && !isNotEmptyUnionOverrode
             when {

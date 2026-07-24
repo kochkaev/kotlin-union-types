@@ -13,6 +13,7 @@ import org.jetbrains.kotlin.fir.types.abbreviatedType
 import org.jetbrains.kotlin.fir.types.abbreviatedTypeOrSelf
 import org.jetbrains.kotlin.fir.types.canBeNull
 import org.jetbrains.kotlin.fir.types.coneType
+import org.jetbrains.kotlin.fir.types.impl.ConeClassLikeTypeImpl
 import org.jetbrains.kotlin.fir.types.isNullableNothing
 import org.jetbrains.kotlin.fir.types.isSubtypeOf
 import org.jetbrains.kotlin.fir.types.type
@@ -274,7 +275,9 @@ class UnionConeType private constructor(
     val expandedType: ConeKotlinType
         get() = _expandedType.elseIfNull {
             _expandedType = if (context == null) rawType
-                else substituteOrSelf(rawType.fullyExpandedType())
+                else substituteOrSelf(rawType.fullyExpandedType()).let {
+                    (it as? ConeClassLikeTypeImpl)?.cachedExpandedType?.second?.fullyExpandedType() ?: it
+                }
             _expandedType!!
         }
     private var _resolved: Array<UnionConeType?>? = null
@@ -471,6 +474,7 @@ class UnionConeType private constructor(
             fullyResolvedUnionWrapped
             unionWrapped
             withIntersection
+            expandedType
             thisType
 
             cachedUnexpanded?.resolveAllForDiagnostics()

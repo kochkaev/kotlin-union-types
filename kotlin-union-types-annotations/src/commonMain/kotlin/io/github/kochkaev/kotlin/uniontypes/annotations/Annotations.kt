@@ -190,6 +190,7 @@ public annotation class IntersectionAdv(vararg val types: Type)
  * @param typeParameter The name of a type parameter from an enclosing scope (e.g., `"T"` in `fun <T>...`).
  * @param generics An array of nested `Type` instances for specifying generic arguments (e.g., for `List<String>`, `type` would be `List::class` and `generics` would be `[Type(String::class)]`).
  */
+// TODO: Add `starProjection`, `union`, `intersection` and `variance` fields
 @Target()
 @Retention(AnnotationRetention.RUNTIME) // Keep for reflection
 public annotation class Type(

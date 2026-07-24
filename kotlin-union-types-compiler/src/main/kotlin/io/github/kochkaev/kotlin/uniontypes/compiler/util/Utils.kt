@@ -137,7 +137,7 @@ internal fun List<FirAnnotation>.unwrapOrEmptyOrNullIfError(
 ): List<ConeKotlinType>? {
     val list = mutableListOf<ConeKotlinType>()
     this
-        .map { it.unwrapOrEmptyOrNullIfError(declaration, recursive, simpleClassId, advancedClassId) }
+        .map { it.unwrapOrEmptyOrNullIfErrorRecurseSafe(declaration, recursive, simpleClassId, advancedClassId) }
         .forEach {
             if (it == null) return null
             list.addAll(it)
@@ -154,6 +154,25 @@ internal fun List<FirAnnotation>.unwrapIntersectionOrEmptyOrNullIfError(
     declaration: DeclarationInfo? = null,
     recursive: Boolean = false,
 ): List<ConeKotlinType>? = unwrapOrEmptyOrNullIfError(declaration, recursive, INTERSECTION_ANNOTATION_CLASS_ID, INTERSECTION_ADV_ANNOTATION_CLASS_ID)
+
+context(context: CheckerContext, reporter: DiagnosticReporter?)
+internal fun FirAnnotation.unwrapOrEmptyOrNullIfErrorRecurseSafe(
+    declaration: DeclarationInfo? = null,
+    recursive: Boolean = false,
+    simpleClassId: ClassId,
+    advancedClassId: ClassId,
+): List<ConeKotlinType>? {
+    try {
+        val unwrapped = unwrapOrEmptyOrNullIfError(declaration, recursive, simpleClassId, advancedClassId)
+        return unwrapped
+    } catch (_: StackOverflowError) {
+        report(
+            source = source,
+            factory = UnionTypeErrors.RECURSIVE_TYPEALIAS,
+        )
+        return null
+    }
+}
 
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun FirAnnotation.unwrapOrEmptyOrNullIfError(
