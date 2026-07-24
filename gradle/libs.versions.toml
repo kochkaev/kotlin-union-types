@@ -16,7 +16,7 @@ ideaSince = "241"
 # Gradle plugin
 gradlePluginPublish = "2.1.1"
 # kotlin-union-types
-unionTypes = "0.0"
+unionTypes = "1.0.0-SNAPSHOT"
 
 [libraries]
 kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }

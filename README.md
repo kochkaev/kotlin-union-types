@@ -19,7 +19,19 @@ The design of this plugin is guided by two core principles:
 
 ## Installation
 
-The plugin is published to the Gradle Plugin Portal. To use it, apply the plugin to your Gradle project.
+The plugin is published to the Gradle Plugin Portal. To use it, first ensure the Gradle Plugin Portal is included in your plugin repositories in `settings.gradle.kts` (or `settings.gradle`):
+
+### `settings.gradle.kts`
+```kotlin
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral() // Or other repositories
+    }
+}
+```
+
+Then, apply the plugin to your module's `build.gradle.kts` (or `build.gradle`).
 
 ### Kotlin DSL (`build.gradle.kts`)
 ```kotlin
@@ -104,7 +116,7 @@ val data3: ListOfStringOrInt = listOf(1.0)     // Compilation Error!
 
 #### With Type Parameters
 
-Forward type parameters from a generic function or class to create flexible APIs.
+Forward type parameters from a generic function or class to create flexible APIs. The type parameter must be in the current scope (e.g., from a surrounding class or function). The plugin will search for it by name and report an error if it is not found.
 
 ```kotlin
 // This function accepts a value of type T (which must be a Number) or a String.
@@ -155,7 +167,19 @@ These are limitations of the current plugin implementation, not of Kotlin itself
 
 1.  **Concrete Base Types Required**: Union and intersection types can only be declared on a concrete base type, not on a type parameter.
 2.  **No Simultaneous Annotations**: A type cannot be annotated as both a union and an intersection type.
-3.  **Usage Restrictions**: The plugin's union/intersection types cannot be used as:
+3.  **Conflicting `type` and `typeParameter`**: In advanced annotations (`@UnionAdv`, `@IntersectionAdv`), the `Type` annotation cannot specify both `type` and `typeParameter` simultaneously.
+    ```kotlin
+    class MyClass<T> {
+        // Compilation Error: `type` and `typeParameter` cannot be used together.
+        val x: @UnionAdv(
+            Type(
+                type = List::class,
+                typeParameter = "T" 
+            )
+        ) Any? = null
+    }
+    ```
+4.  **Usage Restrictions**: The plugin's union/intersection types cannot be used as:
     - A receiver for an extension function/property (`fun (@Union(...) Any).f()`).
     - A contextual argument (`context(c: @Union(...) Any) fun f()`).
     - A parent type (`class A : @Union(...) B`).
