@@ -3,8 +3,8 @@ package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.report
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
-import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirWhenExpressionChecker
@@ -42,7 +42,7 @@ object UnionTypeWhenExpressionChecker : FirWhenExpressionChecker(MppCheckerKind.
             val isReachable = targetType.isCompatible(checkedType)
 
             if (isReachable == inverse) {
-                reporter.reportOn(
+                report(
                     source = condition.conversionTypeRef.source,
                     factory = UnionTypeErrors.UNREACHABLE_WHEN_BRANCH,
                 )

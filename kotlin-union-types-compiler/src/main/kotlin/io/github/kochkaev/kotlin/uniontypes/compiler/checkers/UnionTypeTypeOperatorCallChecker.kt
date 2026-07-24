@@ -4,8 +4,8 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.DeclarationInfo
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.intersectUnions
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.report
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
-import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.expression.FirTypeOperatorCallChecker
@@ -42,32 +42,32 @@ object UnionTypeTypeOperatorCallChecker : FirTypeOperatorCallChecker(MppCheckerK
 
         when (operation) {
             FirOperation.AS -> if (!matches) {
-                reporter.reportOn(
+                report(
                     source = expression.conversionTypeRef.source,
                     factory = UnionTypeErrors.CAST_WILL_ALWAYS_FAIL,
                 )
             } else if (!operandType.intersectUnions().isCompatible(conversionType)) {
-                reporter.reportOn(
+                report(
                     source = expression.conversionTypeRef.source,
                     factory = UnionTypeErrors.UNSAFE_CAST,
-                    a = operandType to context,
-                    b = conversionType to context,
+                    a = operandType,
+                    b = conversionType,
                 )
             }
             FirOperation.SAFE_AS -> if (!matches) {
-                reporter.reportOn(
+                report(
                     source = expression.source,
                     factory = UnionTypeErrors.USELESS_CAST,
                 )
             }
             FirOperation.IS -> if (!matches) {
-                reporter.reportOn(
+                report(
                     source = expression.source,
                     factory = UnionTypeErrors.CHECK_FOR_INSTANCE_IS_ALWAYS_FALSE,
                 )
             }
             FirOperation.NOT_IS -> if (matches) {
-                reporter.reportOn(
+                report(
                     source = expression.source,
                     factory = UnionTypeErrors.CHECK_FOR_INSTANCE_IS_ALWAYS_FALSE,
                 )

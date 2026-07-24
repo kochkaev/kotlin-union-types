@@ -4,7 +4,11 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import org.jetbrains.kotlin.AbstractKtSourceElement
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Modality
+import org.jetbrains.kotlin.diagnostics.AbstractSourceElementPositioningStrategy
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory0
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory2
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirSession
@@ -202,7 +206,7 @@ internal fun FirExpression.unwrapAdvancedType(
     val hasTypeParameter = !rawTypeParameter.isNullOrEmpty()
 
     if ((rawType != null || hasTypeParameters) && hasTypeParameter) {
-        reporter?.reportOn(
+        report(
             source = source,
             factory = UnionTypeErrors.TYPE_AND_TYPE_PARAMETER_AT_SAME_TIME
         )
@@ -215,7 +219,7 @@ internal fun FirExpression.unwrapAdvancedType(
                 it.takeIf { s -> s.name.asString() == rawTypeParameter }
             }
             symbol?.toConeType() ?: run { with(UnionTypeErrors) {
-                reporter?.reportOn(
+                report(
                     source = source,
                     factory = TYPE_PARAMETER_NOT_FOUND,
                     a = rawTypeParameter
@@ -252,11 +256,11 @@ fun checkCompareVararg(
     arguments.forEach { (argument, source) ->
         val matches = target.isCompatible(argument, false)
         if (!matches) with (UnionTypeErrors) {
-            reporter.reportOn(
+            report(
                 source = source,
                 factory = TYPE_MISMATCH,
-                a = argument to context,
-                b = target to context
+                a = argument,
+                b = target
             )
         }
     }
@@ -334,12 +338,12 @@ fun checkCompare(
     target: UnionConeType?,
     other: UnionConeType?,
     source: AbstractKtSourceElement?,
-    error: (DiagnosticReporter, AbstractKtSourceElement?, UnionConeType, UnionConeType) -> Unit = { reporter, source, target, other ->
-        reporter.reportOn(
+    error: (AbstractKtSourceElement?, UnionConeType, UnionConeType) -> Unit = { source, target, other ->
+        report(
             source = source,
             factory = UnionTypeErrors.TYPE_MISMATCH,
-            a = other to context,
-            b = target to context,
+            a = other,
+            b = target,
         )
     },
     invariance: Boolean = false,
@@ -357,7 +361,7 @@ fun checkCompare(
     if (matches && !nullabilityMatches) return
     if (invariance) matches = matches && other.isCompatible(target, false)
 
-    if (matches == invert) error(reporter, source, target, other)
+    if (matches == invert) error(source, target, other)
 }
 
 fun <T> T.whileDo(condition: (T) -> Boolean, block: (T) -> T): T {
@@ -545,4 +549,44 @@ fun ConeClassLikeType.getEffectiveVariance(index: Int): Variance {
     val useSiteVariance = projection.variance
 
     return if (useSiteVariance != Variance.INVARIANT) useSiteVariance else declarationSiteVariance
+}
+
+
+context(context: CheckerContext, reporter: DiagnosticReporter?)
+fun report(
+    source: AbstractKtSourceElement?,
+    factory: KtDiagnosticFactory0,
+    positioningStrategy: AbstractSourceElementPositioningStrategy? = null,
+) {
+    reporter?.reportOn(source, factory, positioningStrategy)
+}
+context(context: CheckerContext, reporter: DiagnosticReporter?)
+fun <A> report(
+    source: AbstractKtSourceElement?,
+    factory: KtDiagnosticFactory1<A>,
+    a: A,
+    positioningStrategy: AbstractSourceElementPositioningStrategy? = null,
+) {
+    (a as? UnionConeType)?.resolveAllForDiagnostics()
+    reporter?.reportOn(source, factory, a, positioningStrategy)
+}
+context(context: CheckerContext, reporter: DiagnosticReporter?)
+fun <A, B> report(
+    source: AbstractKtSourceElement?,
+    factory: KtDiagnosticFactory2<A, B>,
+    a: A,
+    b: B,
+    positioningStrategy: AbstractSourceElementPositioningStrategy? = null,
+) {
+    (a as? UnionConeType)?.resolveAllForDiagnostics()
+    (b as? UnionConeType)?.resolveAllForDiagnostics()
+    reporter?.reportOn(source, factory, a, b, positioningStrategy)
+}
+
+fun ConeKotlinType.calculateHash(): Int {
+    var result = hashCode()
+    result = 31 * result + attributes.hashCode()
+    result = 31 * result + classId.hashCode()
+    result = 31 * result + variance.hashCode()
+    return result
 }

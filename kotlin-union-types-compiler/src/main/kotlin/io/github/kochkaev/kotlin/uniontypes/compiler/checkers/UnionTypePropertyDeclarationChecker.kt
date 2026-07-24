@@ -7,8 +7,8 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.createSubstitutor
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.intersectUnions
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.report
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
-import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirPropertyChecker
@@ -36,7 +36,7 @@ object UnionTypePropertyDeclarationChecker : FirPropertyChecker(MppCheckerKind.C
             val receiverType = unionBuilder(receiverTypeRef.coneType)
 
             if (receiverType.isUnionType) {
-                reporter.reportOn(
+                report(
                     source = receiverTypeRef.source,
                     factory = UnionTypeErrors.EXTENSION_ON_UNION_TYPE,
                 )
@@ -48,7 +48,7 @@ object UnionTypePropertyDeclarationChecker : FirPropertyChecker(MppCheckerKind.C
             val parameterType = unionBuilder(parameter.returnTypeRef.coneType)
 
             if (parameterType.isUnionType) {
-                reporter.reportOn(
+                report(
                     source = parameter.source,
                     factory = UnionTypeErrors.UNION_TYPE_ON_CONTEXT_PARAMETER,
                 )

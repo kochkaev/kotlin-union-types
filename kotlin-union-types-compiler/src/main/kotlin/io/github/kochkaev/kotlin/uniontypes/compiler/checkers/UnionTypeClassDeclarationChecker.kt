@@ -5,13 +5,12 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.getUnionAnnotations
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.report
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
-import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirClassChecker
 import org.jetbrains.kotlin.fir.declarations.FirClass
-import org.jetbrains.kotlin.fir.resolve.defaultType
 import org.jetbrains.kotlin.fir.resolve.toSymbol
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.types.*
@@ -32,7 +31,7 @@ object UnionTypeClassDeclarationChecker : FirClassChecker(MppCheckerKind.Common)
             val unionTypeAnnotations = superConeType.getUnionAnnotations()
 
             if (unionTypeAnnotations.isNotEmpty()) {
-                reporter.reportOn(
+                report(
                     source = superTypeRef.source,
                     factory = UnionTypeErrors.UNION_TYPE_ON_SUPERTYPE,
                 )

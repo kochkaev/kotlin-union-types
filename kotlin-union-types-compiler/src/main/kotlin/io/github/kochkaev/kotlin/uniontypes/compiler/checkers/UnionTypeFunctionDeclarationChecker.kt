@@ -7,8 +7,8 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.createSubstitutor
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.intersectUnions
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.report
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
-import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirFunctionChecker
@@ -16,7 +16,6 @@ import org.jetbrains.kotlin.fir.backend.utils.processOverriddenFunctionsFromSupe
 import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirResolvePhase
 import org.jetbrains.kotlin.fir.declarations.utils.isOverride
-import org.jetbrains.kotlin.fir.resolve.defaultType
 import org.jetbrains.kotlin.fir.resolve.getContainingClass
 import org.jetbrains.kotlin.fir.scopes.ProcessorAction
 import org.jetbrains.kotlin.fir.scopes.unsubstitutedScope
@@ -40,7 +39,7 @@ object UnionTypeFunctionDeclarationChecker : FirFunctionChecker(MppCheckerKind.C
             val receiverType = unionBuilder(receiverTypeRef.coneType)
 
             if (receiverType.isUnionType) {
-                reporter.reportOn(
+                report(
                     source = receiverTypeRef.source,
                     factory = UnionTypeErrors.EXTENSION_ON_UNION_TYPE,
                 )
@@ -52,7 +51,7 @@ object UnionTypeFunctionDeclarationChecker : FirFunctionChecker(MppCheckerKind.C
             val parameterType = unionBuilder(parameter.returnTypeRef.coneType)
 
             if (parameterType.isUnionType) {
-                reporter.reportOn(
+                report(
                     source = parameter.source,
                     factory = UnionTypeErrors.UNION_TYPE_ON_CONTEXT_PARAMETER,
                 )

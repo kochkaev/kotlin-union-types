@@ -62,7 +62,7 @@ object UnionTypeFunctionReturnChecker : FirFunctionChecker(MppCheckerKind.Common
                 source = expression.source,
             )
 //            if (!actualType.isUnit && !unionMatches(returnType.fullyResolvedUnionWrappedOrThis, unionBuilder(actualType).fullyResolvedUnionWrappedOrThis)) {
-//                reporter.reportOn(
+//                report(
 //                    source = expression.source,
 //                    factory = UnionTypeErrors.TYPE_MISMATCH,
 //                    a = unionBuilder(actualType) to context,

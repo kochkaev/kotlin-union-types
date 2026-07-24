@@ -11,15 +11,16 @@ class UnionBuilder private constructor(
     val substitutor: TypeSubstitutorMarker? = null,
     val autoExpand: Boolean = true,
     val skipValidCheck: Boolean = true,
+    val cached: Map<Int, UnionConeType>? = null
 ) {
-    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    context(context: CheckerContext?, reporter: DiagnosticReporter?)
     operator fun invoke(
         type: ConeKotlinType,
         unionOverride: List<ConeKotlinType>? = null,
         intersectionOverride: List<ConeKotlinType>? = null,
         autoExpand: Boolean = this.autoExpand,
         skipValidCheck: Boolean = this.skipValidCheck,
-    ) = type.union(
+    ) = cached?.get(type.calculateHash()) ?: type.union(
         declaration = declaration,
         substitutor = substitutor,
         unionOverride = unionOverride,
@@ -28,7 +29,7 @@ class UnionBuilder private constructor(
         skipValidCheck = skipValidCheck,
         nullIfNotValid = false,
     )!!
-    context(context: CheckerContext, reporter: DiagnosticReporter?)
+    context(context: CheckerContext?, reporter: DiagnosticReporter?)
     operator fun invoke(
         type: ConeKotlinType,
         unionOverride: List<ConeKotlinType>? = null,
@@ -36,7 +37,7 @@ class UnionBuilder private constructor(
         autoExpand: Boolean = this.autoExpand,
         nullIfNotValid: Boolean,
         skipValidCheck: Boolean = this.skipValidCheck || nullIfNotValid,
-    ) = type.union(
+    ) = cached?.get(type.calculateHash()) ?: type.union(
         declaration = declaration,
         substitutor = substitutor,
         unionOverride = unionOverride,
@@ -51,7 +52,8 @@ class UnionBuilder private constructor(
         substitutor: TypeSubstitutorMarker? = this.substitutor,
         autoExpand: Boolean = this.autoExpand,
         skipValidCheck: Boolean = this.skipValidCheck,
-    ) = UnionBuilder(declaration, substitutor, autoExpand, skipValidCheck)
+        cached: Map<Int, UnionConeType>? = this.cached
+    ) = UnionBuilder(declaration, substitutor, autoExpand, skipValidCheck, cached)
 
     companion object {
         fun of(
@@ -59,6 +61,7 @@ class UnionBuilder private constructor(
             substitutor: TypeSubstitutorMarker? = null,
             autoExpand: Boolean = true,
             skipValidCheck: Boolean = false,
-        ) = UnionBuilder(declaration, substitutor, autoExpand, skipValidCheck)
+            cached: Map<Int, UnionConeType>? = null
+        ) = UnionBuilder(declaration, substitutor, autoExpand, skipValidCheck, cached)
     }
 }
