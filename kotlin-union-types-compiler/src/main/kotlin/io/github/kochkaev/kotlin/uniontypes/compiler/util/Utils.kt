@@ -28,11 +28,9 @@ import org.jetbrains.kotlin.fir.resolve.defaultType
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.getContainingClass
 import org.jetbrains.kotlin.fir.resolve.getContainingClassSymbol
-import org.jetbrains.kotlin.fir.resolve.lookupSuperTypes
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
 import org.jetbrains.kotlin.fir.resolve.substitution.ConeSubstitutor
 import org.jetbrains.kotlin.fir.resolve.substitution.substitutorByMap
-import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.resolve.toSymbol
 import org.jetbrains.kotlin.fir.scopes.impl.toConeType
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
@@ -40,7 +38,6 @@ import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeParameterSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirValueParameterSymbol
@@ -50,7 +47,6 @@ import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.ConeLookupTagBasedType
 import org.jetbrains.kotlin.fir.types.ConeStarProjection
 import org.jetbrains.kotlin.fir.types.ConeTypeIntersector
-import org.jetbrains.kotlin.fir.types.ConeTypeProjection
 import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.fir.types.ProjectionKind
@@ -64,9 +60,11 @@ import org.jetbrains.kotlin.fir.types.toTypeProjection
 import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.fir.types.typeAnnotations
 import org.jetbrains.kotlin.fir.types.typeContext
+import org.jetbrains.kotlin.fir.types.variance
 import org.jetbrains.kotlin.fir.types.withArguments
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.types.Variance
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import kotlin.collections.contains
 
@@ -345,6 +343,7 @@ fun checkCompare(
         )
     },
     invariance: Boolean = false,
+    invert: Boolean = false,
 ) {
     if (target == null || other == null || !target.isValid || !other.isValid) return
     val rawTarget = target.whileDo({ it.cachedUnexpanded != null }) { it.cachedUnexpanded!! }
@@ -358,7 +357,7 @@ fun checkCompare(
     if (matches && !nullabilityMatches) return
     if (invariance) matches = matches && other.isCompatible(target, false)
 
-    if (!matches) error(reporter, source, target, other)
+    if (matches == invert) error(reporter, source, target, other)
 }
 
 fun <T> T.whileDo(condition: (T) -> Boolean, block: (T) -> T): T {
@@ -529,4 +528,21 @@ fun createCallSiteSubstitutor(
     }
 
     return if (mapping.isNotEmpty()) substitutorByMap(mapping, context.session) else ConeSubstitutor.Empty
+}
+
+context(context: CheckerContext)
+fun ConeClassLikeType.getEffectiveVariance(index: Int): Variance {
+    val classSymbol = this.lookupTag.toSymbol(context.session) as? FirClassSymbol<*>
+        ?: return Variance.INVARIANT
+
+    // declaration-site
+    val typeParamSymbol = classSymbol.typeParameterSymbols.getOrNull(index)
+        ?: return Variance.INVARIANT // Type argument not found
+    val declarationSiteVariance = typeParamSymbol.variance // IN_VARIANCE, OUT_VARIANCE or INVARIANT
+
+    // use-site
+    val projection = this.typeArguments.getOrNull(index) ?: return declarationSiteVariance
+    val useSiteVariance = projection.variance
+
+    return if (useSiteVariance != Variance.INVARIANT) useSiteVariance else declarationSiteVariance
 }

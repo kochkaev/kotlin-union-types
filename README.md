@@ -118,7 +118,49 @@ process<Int>("hello")   // OK
 process<Int>(true)      // Compilation Error!
 ```
 
-## Known Limitations and Weaknesses
+## Fundamental Limitations of the Kotlin K2 Compiler
+
+1.  **Bottom-Up Type Resolution**: The K2 compiler resolves types from the "bottom up". This prevents the plugin from checking individual `vararg` members against a union/intersection type without an explicit type declaration.
+    ```kotlin
+    // Error: The `listOf` function doesn't know about the union type. It infers the common
+    // supertype of "string" and 123 as `Serializable & Comparable<*>`, which does not match the union.
+    val list: List<@Union(String::class, Int::class) Any> = listOf("string", 123)
+    
+    // OK: Explicitly providing the type parameter for `listOf` allows each element to be
+    // checked individually against the union type.
+    val list1 = listOf<@Union(String::class, Int::class) Any>("string", 123)
+    ```
+
+2.  **Immutable Types**: The plugin cannot change the types defined in the source code. It can only validate them. This imposes strict rules on how base types must relate to each other:
+    - Each member of a union type must be a subtype of the base type.
+    - The combination of intersection type members must be a subtype of the base type.
+    - In all operations, base types must be compatible.
+    ```kotlin
+    class MyType<out O> {
+        fun produce(): @UnionAdv(Type(typeParameter = "O")) Any? = null
+    }
+    
+    val impl: MyType<CharSequence> = MyType()
+    
+    // Error: The type `CharSequence?` is not a subtype of `Any?` (the base type of the union).
+    val x: CharSequence? = impl.produce()
+    
+    // OK: The cast is permitted because `CharSequence` is a member of the union type.
+    val y: CharSequence? = impl.produce() as? CharSequence
+    ```
+
+## Plugin-Specific Limitations
+
+These are limitations of the current plugin implementation, not of Kotlin itself.
+
+1.  **Concrete Base Types Required**: Union and intersection types can only be declared on a concrete base type, not on a type parameter.
+2.  **No Simultaneous Annotations**: A type cannot be annotated as both a union and an intersection type.
+3.  **Usage Restrictions**: The plugin's union/intersection types cannot be used as:
+    - A receiver for an extension function/property (`fun (@Union(...) Any).f()`).
+    - A contextual argument (`context(c: @Union(...) Any) fun f()`).
+    - A parent type (`class A : @Union(...) B`).
+
+## Known Weaknesses
 
 Due to the compile-time-only nature of this plugin, there are scenarios where the type safety guarantees can be bypassed.
 
@@ -128,14 +170,19 @@ Due to the compile-time-only nature of this plugin, there are scenarios where th
 
 3.  **Gradle Plugin Distribution**: The compiler plugin is distributed as a Gradle plugin, which is not inherited transitively. If a library `A` uses this plugin, an application `B` that depends on `A` will **not** automatically have the plugin applied. To maintain type safety, application `B` must also explicitly apply the compiler plugin in its own build configuration.
 
+## Project Structure
+
+- `kotlin-union-types-annotations`: Annotation definitions (`@Union`, `@Intersection`, etc.).
+- `kotlin-union-types-compiler`: The K2/FIR compiler plugin.
+- `kotlin-union-types-gradle-plugin`: The Gradle plugin for easy setup.
+- `kotlin-union-types-idea-plugin`: IDEA plugin (not yet implemented).
+
 ## Building the Project
 
 This project is built with Gradle.
 
 - To build the plugin and annotations: `./gradlew build`
 - To run the tests: `./gradlew test`
-
-The core logic is located in the `compiler/` module, which is the K2 FIR plugin. The `annotations/` module contains the annotation definitions.
 
 ## License
 

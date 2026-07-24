@@ -19,7 +19,7 @@ abstract class BaseCompilerPluginTest {
         warningMessage: String? = null,
     ) {
         val sourceFile = SourceFile.kotlin("Test.kt", """
-            package io.github.kochkaev.kotlin.uniontypes
+            package io.github.kochkaev.kotlin.uniontypes.test
             
             import io.github.kochkaev.kotlin.uniontypes.annotations.*
             import kotlin.reflect.KClass
@@ -609,6 +609,125 @@ class MoreComplexGenericsTests : BaseCompilerPluginTest() {
         compile("""
             fun <T : Number> create(value: T): @UnionAdv(Type(typeParameter = "T"), Type(String::class)) Any {
                 return 1.0 // Double is not assignable to T
+            }
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+}
+
+class TypeParameterComplexTests : BaseCompilerPluginTest() {
+    @Test
+    fun `should handle renamed type parameter in override`() {
+        compile("""
+            open class Base<T> {
+                open fun process(value: @UnionAdv(Type(typeParameter = "T"), Type(String::class)) Any?) {}
+            }
+
+            class Derived<D> : Base<D>() {
+                override fun process(value: @UnionAdv(Type(typeParameter = "D"), Type(String::class)) Any?) {}
+            }
+
+            fun main() {
+                val d = Derived<Int>()
+                d.process(123)
+                d.process("hello")
+                d.process(null)
+            }
+        """)
+    }
+
+    @Test
+    fun `should handle added upper bound in override`() {
+        compile("""
+            open class Base<T> {
+                open fun process(value: @UnionAdv(Type(typeParameter = "T")) Any?) {}
+            }
+
+            class Derived<D : Number> : Base<D>() {
+                override fun process(value: @UnionAdv(Type(typeParameter = "D")) Any?) {}
+            }
+
+            fun main() {
+                val d = Derived<Int>()
+                d.process(123)
+            }
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type with added upper bound in override`() {
+        compile("""
+            open class Base<T> {
+                open fun process(value: @UnionAdv(Type(typeParameter = "T")) Any?) {}
+            }
+
+            class Derived<D : Number> : Base<D>() {
+                override fun process(value: @UnionAdv(Type(typeParameter = "D")) Any?) {}
+            }
+
+            fun main() {
+                val d = Derived<Int>()
+                d.process("not a number")
+            }
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle more restrictive bound in override`() {
+        compile("""
+            open class Base<T : Number> {
+                open fun process(value: @UnionAdv(Type(typeParameter = "T")) Any) {}
+            }
+
+            class Derived<D : Int> : Base<D>() {
+                override fun process(value: @UnionAdv(Type(typeParameter = "D")) Any) {}
+            }
+
+            fun main() {
+                val d = Derived<Int>()
+                d.process(123)
+            }
+        """)
+    }
+
+    @Test
+    fun `should handle in and out variance`() {
+        compile("""
+            class MyType<in I, out O> {
+                fun consume(i: @UnionAdv(Type(typeParameter = "I")) Any?) {}
+                fun produce(): @UnionAdv(Type(typeParameter = "O")) Any? = null
+            }
+
+            fun main() {
+                // String is a subtype of CharSequence (out -> covariant)
+                // Number is a supertype of Int (in -> contravariant)
+                val x: MyType<Int, CharSequence> = MyType<Number, String>()
+                x.consume(123)
+                x.consume(null)
+            }
+        """)
+    }
+
+    @Test
+    fun `should handle annotation on type parameter`() {
+        compile("""
+            typealias StringOrInt = @Union(String::class, Int::class) Any
+            fun <T : StringOrInt> process(value: T) {}
+
+            fun main() {
+                process("hello")
+                process(123)
+            }
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type with annotation on type parameter`() {
+        compile("""
+            typealias StringOrInt = @Union(String::class, Int::class) Any
+            fun <T : StringOrInt> process(value: T) {}
+
+            fun main() {
+                process(1.0)
             }
         """, shouldFail = true, errorMessage = "Type mismatch")
     }

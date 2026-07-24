@@ -4,14 +4,12 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
-import org.jetbrains.kotlin.fir.analysis.checkers.leastUpperBound
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.getSuperTypes
-import org.jetbrains.kotlin.fir.resolve.toSymbol
+import org.jetbrains.kotlin.fir.resolve.toClassLikeSymbol
 import org.jetbrains.kotlin.fir.types.ConeClassLikeType
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
-import org.jetbrains.kotlin.fir.types.ConeTypeParameterType
 import org.jetbrains.kotlin.fir.types.abbreviatedType
 import org.jetbrains.kotlin.fir.types.abbreviatedTypeOrSelf
 import org.jetbrains.kotlin.fir.types.canBeNull
@@ -20,7 +18,7 @@ import org.jetbrains.kotlin.fir.types.isNullableNothing
 import org.jetbrains.kotlin.fir.types.isSubtypeOf
 import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.fir.types.typeContext
-import org.jetbrains.kotlin.fir.types.unwrapLowerBound
+import org.jetbrains.kotlin.types.Variance
 import org.jetbrains.kotlin.types.model.TypeSubstitutorMarker
 import org.jetbrains.kotlin.types.model.TypeSystemInferenceExtensionContext
 import org.jetbrains.kotlin.types.model.safeSubstitute
@@ -383,33 +381,37 @@ class UnionConeType private constructor(
     fun isCompatible(
         that: UnionConeType,
         checkNullability: Boolean = false,
-        skipSubtypeCheck: Boolean = false
+        skipSubtypeCheck: Boolean = false,
+        contravariance: Boolean = false,
     ): Boolean = with(context) {
         if (isBroken) return true
 
         val target = thisType
         val other = that.thisType
-        val isCompatible = skipSubtypeCheck || other.isSubtypeOf(target, context.session)
+        val isCompatible = skipSubtypeCheck ||
+            (if (contravariance) target to other else other to target).let { (first, second) ->
+                first.isSubtypeOf(second, context.session)
+            }
         var genericsMatches = true
         var isInUnion = true
         val nullabilityMatches = if (checkNullability) isNullable <= that.isNullable else true
         if (target.isNullableNothing || other.isNullableNothing) return nullabilityMatches
 
         if (isCompatible) {
-            var supertype: ConeKotlinType?
-            if (target.equalsClasses(other)) supertype = other
+            var supertype: ConeClassLikeType?
+            if (target.equalsClasses(other)) supertype = other as? ConeClassLikeType
             else {
-                val lookupTag = (other as? ConeClassLikeType)?.lookupTag
-                val symbol = lookupTag?.toSymbol()
+                val symbol = other.toClassLikeSymbol()
                 val supertypes = symbol?.getSuperTypes(context.session) ?: listOf()
-                supertype = supertypes.firstOrNull { target.equalsClasses(it) }?.let { that.substituteOrSelf(it) }
+                supertype = supertypes.firstOrNull { target.equalsClasses(it) }?.let { that.substituteOrSelf(it) as? ConeClassLikeType }
             }
             val baseArguments = target.typeArguments
             val substitutor = context.session.typeContext.createSubstitutorForSuperTypes(other)
             supertype?.typeArguments?.forEachIndexed { i, projection ->
                 val expect = baseArguments[i].type
                 val found = projection.type?.let { substituteOrSelf(it, substitutor) }
-                val matches = expect == null || found != null && copyTo(expect).isCompatible(that.copyTo(found))
+                val contravariance = (target as? ConeClassLikeType)?.getEffectiveVariance(i) == Variance.IN_VARIANCE
+                val matches = expect == null || found != null && copyTo(expect).isCompatible(that.copyTo(found), contravariance = contravariance)
                 genericsMatches = genericsMatches && matches
             }
         }
