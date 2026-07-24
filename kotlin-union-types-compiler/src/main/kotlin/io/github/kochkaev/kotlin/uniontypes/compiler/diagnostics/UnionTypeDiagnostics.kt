@@ -142,6 +142,7 @@ open class ConeTypeRendererWithUnion (
     builder: StringBuilder,
     preRenderedConstructors: Map<TypeConstructorMarker, String>? = null,
     val unionBuilder: UnionBuilder = UnionConeType.builder(),
+    val expandTypeAliases: Boolean = true,
     idRendererCreator: () -> ConeIdRenderer,
 ): ConeTypeRendererForReadability(builder, preRenderedConstructors, idRendererCreator) {
     override fun renderSimpleType(type: ConeSimpleKotlinType, nullabilityMarker: String) = withContext {
@@ -154,7 +155,7 @@ open class ConeTypeRendererWithUnion (
         nullabilityMarker: String = withContext { if (type.thisType !is ConeFlexibleType && type.thisType.isMarkedNullable) "?" else "" },
     ) {
         withContext {
-            val raw = type.thisType
+            val raw = if (expandTypeAliases) type.expandedType else type.thisType
             val isNotEmptyUnionOverrode = type.isUnionOverrideNotEmpty
             val isEmptyUnionOverrode = type.isUnionOverrode && !isNotEmptyUnionOverrode
             when {
@@ -163,7 +164,7 @@ open class ConeTypeRendererWithUnion (
                     return@withContext
                 }
                 type.isDeclaredUnionType && !isEmptyUnionOverrode || isNotEmptyUnionOverrode -> {
-                    type.unionWrapped
+                    (if (expandTypeAliases) type.fullyResolvedUnionWrapped else type.unionWrapped)
                         .fold(false) { notFirstIteration, type ->
                             if (notFirstIteration) builder.append(unionSeparator)
                             super.render(type.thisType, nullabilityMarker)
