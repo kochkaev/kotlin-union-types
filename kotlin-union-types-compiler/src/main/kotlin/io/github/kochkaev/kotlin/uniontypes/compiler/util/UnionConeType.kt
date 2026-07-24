@@ -4,6 +4,7 @@ import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
+import org.jetbrains.kotlin.fir.analysis.checkers.leastUpperBound
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
 import org.jetbrains.kotlin.fir.resolve.getSuperTypes
@@ -19,10 +20,12 @@ import org.jetbrains.kotlin.fir.types.isNullableNothing
 import org.jetbrains.kotlin.fir.types.isSubtypeOf
 import org.jetbrains.kotlin.fir.types.type
 import org.jetbrains.kotlin.fir.types.typeContext
+import org.jetbrains.kotlin.fir.types.unwrapLowerBound
 import org.jetbrains.kotlin.types.model.TypeSubstitutorMarker
 import org.jetbrains.kotlin.types.model.TypeSystemInferenceExtensionContext
 import org.jetbrains.kotlin.types.model.safeSubstitute
 import org.jetbrains.kotlin.utils.addToStdlib.ifNotEmpty
+import kotlin.let
 
 class UnionConeType private constructor(
     val rawType: ConeKotlinType,
@@ -386,7 +389,6 @@ class UnionConeType private constructor(
 
         val target = thisType
         val other = that.thisType
-        val isTypeParameter = target is ConeTypeParameterType
         val isCompatible = skipSubtypeCheck || other.isSubtypeOf(target, context.session)
         var genericsMatches = true
         var isInUnion = true
@@ -418,7 +420,7 @@ class UnionConeType private constructor(
                 else unionMatches(fullyResolvedUnionWrapped, otherUnion)
         }
 
-        return (isCompatible || isTypeParameter) && genericsMatches && isInUnion && nullabilityMatches
+        return isCompatible && genericsMatches && isInUnion && nullabilityMatches
     }
 
 

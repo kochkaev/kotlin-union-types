@@ -6,9 +6,11 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
 import org.jetbrains.kotlin.diagnostics.reportOn
+import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.analysis.checkers.classKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
+import org.jetbrains.kotlin.fir.analysis.checkers.typeParameterSymbols
 import org.jetbrains.kotlin.fir.containingClassLookupTag
 import org.jetbrains.kotlin.fir.declarations.FirTypeParameterRefsOwner
 import org.jetbrains.kotlin.fir.declarations.utils.modality
@@ -18,20 +20,27 @@ import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirGetClassCall
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
+import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirSpreadArgumentExpression
 import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
 import org.jetbrains.kotlin.fir.expressions.toResolvedCallableSymbol
+import org.jetbrains.kotlin.fir.resolve.defaultType
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
+import org.jetbrains.kotlin.fir.resolve.getContainingClass
 import org.jetbrains.kotlin.fir.resolve.getContainingClassSymbol
+import org.jetbrains.kotlin.fir.resolve.lookupSuperTypes
 import org.jetbrains.kotlin.fir.resolve.providers.symbolProvider
 import org.jetbrains.kotlin.fir.resolve.substitution.ConeSubstitutor
 import org.jetbrains.kotlin.fir.resolve.substitution.substitutorByMap
+import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
 import org.jetbrains.kotlin.fir.resolve.toSymbol
 import org.jetbrains.kotlin.fir.scopes.impl.toConeType
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.SymbolInternals
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirTypeParameterSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirValueParameterSymbol
@@ -41,6 +50,8 @@ import org.jetbrains.kotlin.fir.types.ConeKotlinTypeProjection
 import org.jetbrains.kotlin.fir.types.ConeLookupTagBasedType
 import org.jetbrains.kotlin.fir.types.ConeStarProjection
 import org.jetbrains.kotlin.fir.types.ConeTypeIntersector
+import org.jetbrains.kotlin.fir.types.ConeTypeProjection
+import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.fir.types.ProjectionKind
 import org.jetbrains.kotlin.fir.types.abbreviatedType
@@ -100,7 +111,6 @@ internal fun FirBasedSymbol<*>.getContainingSymbol(session: FirSession) = when (
     else -> null
 }
 
-@OptIn(SymbolInternals::class)
 internal fun unwrapTypeParameters(
     symbol: FirBasedSymbol<*>?,
     session: FirSession,
@@ -109,10 +119,7 @@ internal fun unwrapTypeParameters(
     var current = symbol
 
     while (current != null) {
-        val fir = current.fir
-        if (fir is FirTypeParameterRefsOwner) {
-            allTP.addAll(fir.typeParameters.map { it.symbol })
-        }
+        current.typeParameterSymbols?.let { allTP += it }
         current = current.getContainingSymbol(session)
     }
 
@@ -426,4 +433,100 @@ fun FirFunctionCall.createUniversalSubstitutor(): ConeSubstitutor {
     }
 
     return substitutorByMap(substitutionMap, context.session)
+}
+
+
+@OptIn(SymbolInternals::class)
+context(context: CheckerContext)
+internal fun FirCallableSymbol<*>.createSubstitutor(
+    derivedClassSymbol: FirClassSymbol<*>? = null,
+    derivedCallableSymbol: FirCallableSymbol<*>? = null,
+): ConeSubstitutor {
+    val map = mutableMapOf<FirTypeParameterSymbol, ConeKotlinType>()
+
+    // Collect class type parameters
+    if (derivedClassSymbol != null) {
+        val baseClass = this.fir.getContainingClass()
+        val baseClassSymbol = baseClass?.symbol as? FirClassSymbol<*>
+        if (baseClassSymbol != null) {
+            val derivedType = derivedClassSymbol.defaultType()
+            val baseSuperType = findSubstitutedSuperType(derivedType, baseClassSymbol)
+            if (baseSuperType != null) {
+                val baseTypeParams = baseClassSymbol.typeParameterSymbols
+                val typeArgs = baseSuperType.typeArguments
+                for (i in baseTypeParams.indices) {
+                    val argType = typeArgs.getOrNull(i)?.type ?: continue
+                    map[baseTypeParams[i]] = argType
+                }
+            }
+        }
+    }
+
+    // Collect function/property type parameters
+    if (derivedCallableSymbol != null) {
+        val baseCallableTypeParams = this.typeParameterSymbols
+        val derivedCallableTypeParams = derivedCallableSymbol.typeParameterSymbols
+
+        for (i in baseCallableTypeParams.indices) {
+            val baseParam = baseCallableTypeParams[i]
+            val derivedParam = derivedCallableTypeParams.getOrNull(i) ?: continue
+            map[baseParam] = derivedParam.toConeType()
+        }
+    }
+
+    if (map.isEmpty()) return ConeSubstitutor.Empty
+    return substitutorByMap(map, context.session)
+}
+context(context: CheckerContext)
+private fun findSubstitutedSuperType(
+    derivedType: ConeKotlinType,
+    baseClassSymbol: FirClassSymbol<*>,
+): ConeClassLikeType? {
+    if (derivedType !is ConeClassLikeType) return null
+    if (derivedType.lookupTag == baseClassSymbol.toLookupTag()) return derivedType
+
+    val derivedClassSymbol = derivedType.lookupTag.toSymbol(context.session) as? FirClassSymbol<*> ?: return null
+    val typeParameters = derivedClassSymbol.typeParameterSymbols
+    val typeArguments = derivedType.typeArguments
+
+    val map = typeParameters.zip(typeArguments).mapNotNull { (param, arg) ->
+        val type = arg.type ?: return@mapNotNull null
+        param to type
+    }.toMap()
+    val substitutor = substitutorByMap(map, context.session)
+
+    for (superTypeRef in derivedClassSymbol.resolvedSuperTypeRefs) {
+        val substitutedSuperType = substitutor.substituteOrSelf(superTypeRef.coneType)
+        val result = findSubstitutedSuperType(substitutedSuperType, baseClassSymbol)
+        if (result != null) return result
+    }
+
+    return null
+}
+
+fun createCallSiteSubstitutor(
+    initializer: FirElement,
+    context: CheckerContext
+): ConeSubstitutor {
+    val qualifiedAccess = initializer as? FirQualifiedAccessExpression ?: return ConeSubstitutor.Empty
+    val callableSymbol = qualifiedAccess.toResolvedCallableSymbol(context.session) ?: return ConeSubstitutor.Empty
+
+    val typeParameters = callableSymbol.typeParameterSymbols
+    val typeArguments = qualifiedAccess.typeArguments
+
+    if (typeParameters.isEmpty() || typeParameters.size != typeArguments.size) {
+        return ConeSubstitutor.Empty
+    }
+
+    val mapping = mutableMapOf<FirTypeParameterSymbol, ConeKotlinType>()
+    for (i in typeParameters.indices) {
+        val paramSymbol = typeParameters[i]
+        val projection = typeArguments[i]
+        val argType = (projection as? FirTypeProjectionWithVariance)?.typeRef?.coneType
+        if (argType != null) {
+            mapping[paramSymbol] = argType
+        }
+    }
+
+    return if (mapping.isNotEmpty()) substitutorByMap(mapping, context.session) else ConeSubstitutor.Empty
 }

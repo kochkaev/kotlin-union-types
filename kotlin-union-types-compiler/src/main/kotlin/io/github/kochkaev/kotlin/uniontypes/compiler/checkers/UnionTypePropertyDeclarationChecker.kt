@@ -1,8 +1,10 @@
 package io.github.kochkaev.kotlin.uniontypes.compiler.checkers
 
 import io.github.kochkaev.kotlin.uniontypes.compiler.diagnostics.UnionTypeErrors
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.DeclarationInfo
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.UnionConeType
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.checkCompare
+import io.github.kochkaev.kotlin.uniontypes.compiler.util.createSubstitutor
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.info
 import io.github.kochkaev.kotlin.uniontypes.compiler.util.intersectUnions
 import org.jetbrains.kotlin.diagnostics.DiagnosticReporter
@@ -10,11 +12,14 @@ import org.jetbrains.kotlin.diagnostics.reportOn
 import org.jetbrains.kotlin.fir.analysis.checkers.MppCheckerKind
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.analysis.checkers.declaration.FirPropertyChecker
+import org.jetbrains.kotlin.fir.backend.utils.processOverriddenPropertiesFromSuperClasses
 import org.jetbrains.kotlin.fir.declarations.FirProperty
+import org.jetbrains.kotlin.fir.declarations.FirResolvePhase
 import org.jetbrains.kotlin.fir.declarations.utils.isOverride
 import org.jetbrains.kotlin.fir.resolve.getContainingClass
 import org.jetbrains.kotlin.fir.scopes.ProcessorAction
 import org.jetbrains.kotlin.fir.scopes.unsubstitutedScope
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
 import org.jetbrains.kotlin.fir.types.coneType
 import org.jetbrains.kotlin.fir.types.isSubtypeOf
 
@@ -55,9 +60,12 @@ object UnionTypePropertyDeclarationChecker : FirPropertyChecker(MppCheckerKind.C
             val isVar = declaration.isVar
 
             val containingClass = declaration.getContainingClass()
+            val derivedClassSymbol = containingClass?.symbol as? FirClassSymbol<*>
             val scope = containingClass?.unsubstitutedScope(
+                context.session,
+                context.scopeSession,
                 withForcedTypeCalculator = false,
-                memberRequiredPhase = null
+                memberRequiredPhase = FirResolvePhase.STATUS
             )
 
             val symbol = declaration.symbol
@@ -66,13 +74,22 @@ object UnionTypePropertyDeclarationChecker : FirPropertyChecker(MppCheckerKind.C
             val baseReturnTypes = mutableListOf<UnionConeType>()
 
             var mathBaseType = true
-            scope?.processDirectOverriddenPropertiesWithBaseScope(symbol) { overriddenSymbol, _ ->
-                val type = overriddenSymbol.resolvedReturnType
+            scope?.processOverriddenPropertiesFromSuperClasses(symbol, containingClass) { overriddenSymbol ->
+                val substitutor = overriddenSymbol.createSubstitutor(derivedClassSymbol, symbol)
+                val unionBuilderLocal = UnionConeType.builder(
+                    declaration = DeclarationInfo(
+                        source = declaration.source,
+                        symbol = overriddenSymbol,
+                    ),
+                    substitutor = substitutor
+                )
+
+                val type = substitutor.substituteOrSelf(overriddenSymbol.resolvedReturnType)
                 if (!derivedReturnConeType.isSubtypeOf(type, context.session)) {
                     mathBaseType = false
                     ProcessorAction.STOP
                 } else {
-                    baseReturnTypes.add(unionBuilder(type))
+                    baseReturnTypes.add(unionBuilderLocal(type))
                     ProcessorAction.NEXT
                 }
             }

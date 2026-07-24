@@ -529,3 +529,87 @@ class AnnotationValidationTests : BaseCompilerPluginTest() {
         """, shouldFail = true, errorMessage = "The intersection of all members")
     }
 }
+
+class MoreComplexGenericsTests : BaseCompilerPluginTest() {
+    @Test
+    fun `should handle nested generics in @UnionAdv`() {
+        compile("""
+            typealias NestedGeneric = @UnionAdv(
+                Type(List::class, generics = [Type(Set::class, generics = [Type(String::class)])]),
+                Type(Map::class, generics = [Type(Int::class), Type(String::class)])
+            ) Any
+
+            val x: NestedGeneric = listOf(setOf("a"))
+            val y: NestedGeneric = mapOf(1 to "b")
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect nested generics in @UnionAdv`() {
+        compile("""
+            typealias NestedGeneric = @UnionAdv(
+                Type(List::class, generics = [Type(Set::class, generics = [Type(String::class)])]),
+                Type(Map::class, generics = [Type(Int::class), Type(String::class)])
+            ) Any
+
+            val x: NestedGeneric = listOf(setOf(1))
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle generics in inheritance`() {
+        compile(
+            """
+            open class Base<T: Any> {
+                open fun process(item: @UnionAdv(Type(typeParameter = "T"), Type(String::class)) Any) {}
+            }
+
+            class Derived : Base<Int>() {
+                override fun process(item: @Union(Int::class, String::class) Any) {}
+            }
+
+            fun main() {
+                val d = Derived()
+                d.process(123)
+                d.process("hello")
+            }
+        """
+        )
+    }
+
+    @Test
+    fun `should fail for incorrect override with generics in inheritance`() {
+        compile("""
+            open class Base<T: Any> {
+                open fun process(item: @UnionAdv(Type(typeParameter = "T"), Type(String::class)) Any) {}
+            }
+
+            class Derived : Base<Int>() {
+                override fun process(item: @Union(Double::class, String::class) Any) {}
+            }
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle function return type with generics`() {
+        compile("""
+            fun <T : Number> create(value: T): @UnionAdv(Type(typeParameter = "T"), Type(String::class)) Any {
+                return if (value.toInt() > 0) value else "zero"
+            }
+
+            fun main() {
+                val x: @Union(Int::class, String::class) Any = create(10)
+                val y: @Union(Double::class, String::class) Any = create(-1.0)
+            }
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect function return type with generics`() {
+        compile("""
+            fun <T : Number> create(value: T): @UnionAdv(Type(typeParameter = "T"), Type(String::class)) Any {
+                return 1.0 // Double is not assignable to T
+            }
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+}
