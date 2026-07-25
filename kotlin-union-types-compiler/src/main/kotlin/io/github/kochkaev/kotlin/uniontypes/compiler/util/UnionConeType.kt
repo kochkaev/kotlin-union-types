@@ -78,7 +78,7 @@ class UnionConeType private constructor(
                 _unionRaw = listOf()
                 return@elseIfNull listOf()
             }
-            _unionRaw = unionAnnotations.unwrapUnionOrEmptyOrNullIfError(declaration)
+            _unionRaw = rawType.extractUnionAttribute() ?: unionAnnotations.unwrapUnionOrEmptyOrNullIfError(declaration)
             if (_unionRaw == null) {
                 _isBroken = true
                 _unionRaw = listOf()

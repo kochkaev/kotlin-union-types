@@ -29,10 +29,10 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
 
     val EXTENSION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val UNION_TYPE_ON_CONTEXT_PARAMETER by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
-    val TYPE_AND_TYPE_PARAMETER_AT_SAME_TIME by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val ILLEGAL_ADV_TYPE_DECLARATION by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val INTERSECTION_AND_UNION_AT_SAME_TIME by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val INTERSECTION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
-    val RECURSIVE_TYPEALIAS by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val RECURSIVE_IN_UNION_OR_INTERSECTION by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
 
     val TYPE_PARAMETER_NOT_FOUND by error1<PsiElement, String>(SourceElementPositioningStrategies.DEFAULT)
 
@@ -87,8 +87,8 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                         message = "Union/intersection types are not allowed on context parameters."
                     )
                     put(
-                        factory = TYPE_AND_TYPE_PARAMETER_AT_SAME_TIME,
-                        message = "Cannot use 'type' and 'typeParameter' at the same time."
+                        factory = ILLEGAL_ADV_TYPE_DECLARATION,
+                        message = "Only one of 'type', 'typeParameter', 'union', or 'intersection' can be used at the same time."
                     )
                     put(
                         factory = INTERSECTION_AND_UNION_AT_SAME_TIME,
@@ -99,8 +99,8 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                         message = "An @Intersection/@IntersectionAdv annotation cannot be applied to a union type."
                     )
                     put(
-                        factory = RECURSIVE_TYPEALIAS,
-                        message = "Recursive type aliases are not supported"
+                        factory = RECURSIVE_IN_UNION_OR_INTERSECTION,
+                        message = "Recursive types in union/intersection are not supported."
                     )
 
                     put(

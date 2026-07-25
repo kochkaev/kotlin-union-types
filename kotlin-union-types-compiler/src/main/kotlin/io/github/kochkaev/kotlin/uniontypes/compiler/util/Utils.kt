@@ -19,6 +19,7 @@ import org.jetbrains.kotlin.fir.containingClassLookupTag
 import org.jetbrains.kotlin.fir.declarations.FirTypeParameterRefsOwner
 import org.jetbrains.kotlin.fir.declarations.utils.modality
 import org.jetbrains.kotlin.fir.expressions.FirAnnotation
+import org.jetbrains.kotlin.fir.expressions.FirCall
 import org.jetbrains.kotlin.fir.expressions.FirCollectionLiteral
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
@@ -27,6 +28,8 @@ import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
 import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirSpreadArgumentExpression
 import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
+import org.jetbrains.kotlin.fir.expressions.arguments
+import org.jetbrains.kotlin.fir.expressions.resolvedArgumentMappingIncludingContextArguments
 import org.jetbrains.kotlin.fir.expressions.toResolvedCallableSymbol
 import org.jetbrains.kotlin.fir.resolve.defaultType
 import org.jetbrains.kotlin.fir.resolve.fullyExpandedType
@@ -66,6 +69,7 @@ import org.jetbrains.kotlin.fir.types.typeAnnotations
 import org.jetbrains.kotlin.fir.types.typeContext
 import org.jetbrains.kotlin.fir.types.variance
 import org.jetbrains.kotlin.fir.types.withArguments
+import org.jetbrains.kotlin.fir.types.withAttributes
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.types.Variance
@@ -168,7 +172,7 @@ internal fun FirAnnotation.unwrapOrEmptyOrNullIfErrorRecurseSafe(
     } catch (_: StackOverflowError) {
         report(
             source = source,
-            factory = UnionTypeErrors.RECURSIVE_TYPEALIAS,
+            factory = UnionTypeErrors.RECURSIVE_IN_UNION_OR_INTERSECTION,
         )
         return null
     }
@@ -188,14 +192,14 @@ internal fun FirAnnotation.unwrapOrEmptyOrNullIfError(
     allowedTypesArgument.arguments.forEach { argument ->
         val raw = if (isAdv) {
             // Advanced
-            argument.unwrapAdvancedType(typeParameters)
+            argument.unwrapAdvancedType(typeParameters)?.filterNotNull()
         } else {
             // Simple
             val kclassType = argument.resolvedType
-            (kclassType.typeArguments.firstOrNull() as? ConeKotlinTypeProjection)?.type
+            listOf((kclassType.typeArguments.firstOrNull() as? ConeKotlinTypeProjection)?.type).filterNotNull()
         }
         if (raw == null) return null
-        if (recursive) {
+        if (recursive) raw.forEach { raw ->
             val resolved = raw.tryRecursiveResolveTypealias(simpleClassId, advancedClassId)
             if (!resolved.isNullOrEmpty()) allowedTypes += resolved
             else allowedTypes += raw
@@ -211,33 +215,41 @@ internal fun ConeKotlinType.tryRecursiveResolveTypealias(simple: ClassId, advanc
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun FirExpression.unwrapAdvancedType(
     typeParameters: List<FirTypeParameterSymbol> = listOf(),
-): ConeKotlinType? {
-    val arguments = (this as? FirFunctionCall)?.argumentList?.arguments ?: return null
+): List<ConeKotlinType?>? {
+    val arguments = (this as? FirCall)?.resolvedArgumentMappingIncludingContextArguments ?: return null
     if (arguments.isEmpty()) return null
 
-    val typeExpr = arguments.filterIsInstance<FirGetClassCall>().firstOrNull()
-    val typeParametersExpr = arguments.filterIsInstance<FirVarargArgumentsExpression>().firstOrNull()?.arguments
-    val hasTypeParameters = !typeParametersExpr.isNullOrEmpty()
-    val rawType = typeExpr?.argument?.resolvedType
+    val typeExpr = arguments.filter { (_, value) ->
+        value.name.asString() == "type"
+    } .keys.firstOrNull() as? FirGetClassCall
+    val genericsExpr = arguments.filter { (_, value) ->
+        value.name.asString() == "generics"
+    } .keys.firstOrNull() as? FirVarargArgumentsExpression
+    val typeParameterExpr = arguments.filter { (_, value) ->
+        value.name.asString() == "typeParameter"
+    } .keys.firstOrNull() as? FirLiteralExpression
+    val unionExpr = arguments.filter { (_, value) ->
+        value.name.asString() == "union"
+    } .keys.firstOrNull() as? FirCollectionLiteral
+    val intersectionExpr = arguments.filter { (key, value) ->
+        key is FirCollectionLiteral && value.name.asString() == "intersection"
+    } .keys.firstOrNull() as? FirCollectionLiteral
 
-    val typeParameter = arguments.filterIsInstance<FirLiteralExpression>().firstOrNull()
-    val rawTypeParameter = typeParameter?.value as? String
-    val hasTypeParameter = !rawTypeParameter.isNullOrEmpty()
-
-    if ((rawType != null || hasTypeParameters) && hasTypeParameter) {
+    if ((typeExpr != null || genericsExpr != null) + (typeParameterExpr != null) + (unionExpr != null) + (intersectionExpr != null) > 1) {
         report(
             source = source,
-            factory = UnionTypeErrors.TYPE_AND_TYPE_PARAMETER_AT_SAME_TIME
+            factory = UnionTypeErrors.ILLEGAL_ADV_TYPE_DECLARATION
         )
         return null
     }
 
-    val baseConeType =
-        if (hasTypeParameter) {
+    val resolved = when {
+        typeParameterExpr != null -> {
+            val rawTypeParameter = typeParameterExpr.value as String
             val symbol = typeParameters.firstNotNullOfOrNull {
                 it.takeIf { s -> s.name.asString() == rawTypeParameter }
             }
-            symbol?.toConeType() ?: run { with(UnionTypeErrors) {
+            symbol?.toConeType()?.let { listOf(it) } ?: run { with(UnionTypeErrors) {
                 report(
                     source = source,
                     factory = TYPE_PARAMETER_NOT_FOUND,
@@ -246,18 +258,60 @@ internal fun FirExpression.unwrapAdvancedType(
                 return null
             } }
         }
-        else typeExpr?.argument?.resolvedType ?: return null
-
-    val typeArguments = typeParametersExpr?.unwrapVararg()?.map { nestedExpr ->
-        val nestedType = (if (nestedExpr is FirSpreadArgumentExpression) nestedExpr.expression else nestedExpr).unwrapAdvancedType(typeParameters)
-        nestedType?.toTypeProjection(ProjectionKind.INVARIANT) ?: ConeStarProjection
-    } ?: emptyList()
-
-    return if (typeArguments.isNotEmpty()) {
-        baseConeType.withArguments(typeArguments.toTypedArray())
-    } else {
-        baseConeType
+        typeExpr != null -> {
+            val rawType = typeExpr.argument.resolvedType
+            val rawGenerics = genericsExpr?.arguments
+            val typeArguments = rawGenerics?.unwrapVararg()?.map { nestedExpr ->
+                val targetExpr = if (nestedExpr is FirSpreadArgumentExpression) nestedExpr.expression else nestedExpr
+                val nestedTypes = targetExpr.unwrapAdvancedType(typeParameters)?.filterNotNull() ?: emptyList()
+                val coneType = when {
+                    nestedTypes.isEmpty() -> null
+                    nestedTypes.size == 1 -> nestedTypes.single()
+                    else -> createUnionCarrierType(nestedTypes)
+                }
+                coneType?.toTypeProjection(ProjectionKind.INVARIANT) ?: ConeStarProjection
+            } ?: emptyList()
+            val typed = if (typeArguments.isNotEmpty())
+                    rawType.withArguments(typeArguments.toTypedArray())
+                else rawType
+            listOf(typed)
+        }
+        unionExpr != null -> {
+            val nestedUnions = unionExpr.arguments.map { it.unwrapAdvancedType(typeParameters)?.filterNotNull() ?: return null }
+            nestedUnions.subList(1, nestedUnions.size)
+                .fold(nestedUnions[0]) { acc, union -> acc.union(union).toList() }
+                .distinct()
+        }
+        intersectionExpr != null -> {
+            val nestedUnions = intersectionExpr.arguments.map { it.unwrapAdvancedType(typeParameters)?.filterNotNull() ?: return null }
+            if (nestedUnions.isEmpty()) {
+                listOf(ConeStarProjection.type)
+            } else if (nestedUnions.size == 1) {
+                nestedUnions.single()
+            } else {
+                nestedUnions.subList(1, nestedUnions.size)
+                    .fold(nestedUnions[0]) { acc, union -> acc.intersectUnions(union) }
+            }
+        }
+        else -> listOf(ConeStarProjection.type)
     }
+
+    return resolved
+}
+
+context(context: CheckerContext)
+fun createUnionCarrierType(types: List<ConeKotlinType>) =
+    context.session.builtinTypes.nullableAnyType.coneType.withUnionAttribute(types)
+fun ConeKotlinType.withUnionAttribute(types: List<ConeKotlinType>): ConeKotlinType {
+    if (types.isEmpty()) return this
+    if (types.size == 1) return types.single()
+    val attribute = UnionTypeAttribute(types)
+    return withAttributes(attributes.add(attribute))
+}
+
+fun ConeKotlinType.extractUnionAttribute(): List<ConeKotlinType>? {
+    val attribute = attributes[UnionTypeAttribute::class]
+    return attribute?.types
 }
 
 fun List<FirExpression>.unwrapVararg(): List<FirExpression>? = let {
@@ -337,11 +391,24 @@ internal fun ConeKotlinType.canHaveSubtypeWith(other: ConeKotlinType): Boolean {
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun intersectUnions(u1: UnionConeType, u2: UnionConeType): List<ConeKotlinType> {
     val resultVariants = mutableListOf<ConeKotlinType>()
-    for (type1 in u1.fullyResolvedUnionOrThis) {
-        for (type2 in u2.fullyResolvedUnionOrThis) {
+    u1.fullyResolvedUnionOrThis.forEach { type1 ->
+        u2.fullyResolvedUnionOrThis.forEach { type2 ->
             if (type1.canHaveSubtypeWith(type2)) {
                 val intersection = type1.intersect(type2)
-                resultVariants.add(intersection)
+                resultVariants += intersection
+            }
+        }
+    }
+    return resultVariants
+}
+context(context: CheckerContext)
+internal fun List<ConeKotlinType>.intersectUnions(other: List<ConeKotlinType>): List<ConeKotlinType> {
+    val resultVariants = mutableListOf<ConeKotlinType>()
+    forEach { type1 ->
+        other.forEach { type2 ->
+            if (type1.canHaveSubtypeWith(type2)) {
+                val intersection = type1.intersect(type2)
+                resultVariants += intersection
             }
         }
     }
@@ -609,3 +676,10 @@ fun ConeKotlinType.calculateHash(): Int {
     result = 31 * result + variance.hashCode()
     return result
 }
+
+operator fun Boolean.plus(that: Boolean): Int =
+    (if (this) 1 else 0) + (if (that) 1 else 0)
+operator fun Boolean.plus(that: Int): Int =
+    (if (this) 1 else 0) + that
+operator fun Int.plus(that: Boolean): Int =
+    this + (if (that) 1 else 0)

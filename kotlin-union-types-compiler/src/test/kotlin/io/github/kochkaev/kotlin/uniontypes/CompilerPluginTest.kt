@@ -76,7 +76,7 @@ class AdvUnionTests : BaseCompilerPluginTest() {
     @Test fun `should fail on incorrect parameterized type`() = compile("val x: @UnionAdv(Type(List::class, generics = [Type(String::class)])) Any = listOf(1)", shouldFail = true, errorMessage = "Type mismatch")
     @Test fun `should handle typeParameter from a function`() = compile("fun <T: Number> process(value: @UnionAdv(Type(typeParameter = \"T\"), Type(String::class)) Any) {}\nfun main() { process<Int>(123); process<Int>(\"hello\") }")
     @Test fun `should fail on incorrect typeParameter from a function`() = compile("fun <T: Number> process(value: @UnionAdv(Type(typeParameter = \"T\"), Type(String::class)) Any) {}\nfun main() { process<Int>(true) }", shouldFail = true, errorMessage = "Type mismatch")
-    @Test fun `should forbid using type and typeParameter simultaneously`() = compile("val x: @UnionAdv(Type(type = String::class, typeParameter = \"T\")) Any = \"a\"", shouldFail = true, errorMessage = "Cannot use 'type' and 'typeParameter' at the same time")
+    @Test fun `should forbid using type and typeParameter simultaneously`() = compile("val x: @UnionAdv(Type(type = String::class, typeParameter = \"T\")) Any = \"a\"", shouldFail = true, errorMessage = "Only one of 'type', 'typeParameter', 'union', or 'intersection' can be used at the same time.")
 }
 
 class VarargAndNullabilityTests : BaseCompilerPluginTest() {
@@ -869,6 +869,80 @@ class SuperComplexCasesTests : BaseCompilerPluginTest() {
         compile("""
             typealias Recursive = @Union(Int::class, Recursive::class) Any
             val x: Recursive = 1
-        """, shouldFail = true, errorMessage = "Recursive type aliases are not supported")
+        """, shouldFail = true, errorMessage = "Recursive types in union/intersection are not supported.")
+    }
+}
+
+class NestedUnionAndIntersectionTests : BaseCompilerPluginTest() {
+    @Test
+    fun `should handle nested union in @UnionAdv`() {
+        compile("""
+            typealias NestedUnion = @UnionAdv(
+                Type(String::class),
+                Type(union = [Type(Int::class), Type(Double::class)])
+            ) Any
+
+            val x: NestedUnion = "hello"
+            val y: NestedUnion = 123
+            val z: NestedUnion = 45.6
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type in nested union`() {
+        compile("""
+            typealias NestedUnion = @UnionAdv(
+                Type(String::class),
+                Type(union = [Type(Int::class), Type(Double::class)])
+            ) Any
+
+            val x: NestedUnion = true
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle nested intersection in @UnionAdv`() {
+        compile("""
+            interface A; interface B
+            class ImplAB: A, B
+            
+            typealias NestedUnion = @UnionAdv(
+                Type(String::class),
+                Type(intersection = [Type(A::class), Type(B::class)])
+            ) Any
+
+            val x: NestedUnion = "hello"
+            val y: NestedUnion = ImplAB()
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect type in nested intersection`() {
+        compile("""
+            interface A; interface B
+            class ImplA: A
+            
+            typealias NestedUnion = @UnionAdv(
+                Type(String::class),
+                Type(intersection = [Type(A::class), Type(B::class)])
+            ) Any
+
+            val x: NestedUnion = ImplA()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should handle star projection with empty Type`() {
+        compile("""
+            typealias ListOfAnything = @UnionAdv(Type(List::class, generics = [Type()])) Any
+            val x: ListOfAnything = listOf(1, "a", true)
+        """)
+    }
+
+    @Test
+    fun `should fail when multiple fields are used in Type`() {
+        compile("""
+            val x: @UnionAdv(Type(type = String::class, union = [Type(Int::class)])) Any = "a"
+        """, shouldFail = true, errorMessage = "Only one of 'type', 'typeParameter', 'union', or 'intersection' can be used at the same time.")
     }
 }
