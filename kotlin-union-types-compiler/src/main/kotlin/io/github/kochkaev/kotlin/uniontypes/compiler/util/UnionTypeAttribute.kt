@@ -28,9 +28,9 @@ class UnionTypeAttribute(
         return other.types.containsAll(this.types)
     }
 
-    override fun toString(): String {
-        return "union(${types.joinToString(" | ")})"
-    }
+    override fun toString(): String =
+        "union(${types.joinToString(" | ")})"
+    override fun renderForReadability(): String = toString()
 
     override val keepInInferredDeclarationType: Boolean
         get() = true

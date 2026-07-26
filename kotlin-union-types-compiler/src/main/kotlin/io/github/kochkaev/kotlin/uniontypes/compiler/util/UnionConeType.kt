@@ -21,6 +21,7 @@ import org.jetbrains.kotlin.fir.types.typeContext
 import org.jetbrains.kotlin.types.Variance
 import org.jetbrains.kotlin.types.model.TypeSubstitutorMarker
 import org.jetbrains.kotlin.types.model.safeSubstitute
+import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import org.jetbrains.kotlin.utils.addToStdlib.ifNotEmpty
 import kotlin.let
 
@@ -70,6 +71,12 @@ class UnionConeType private constructor(
             _unionAnnotations = thisType.getUnionAnnotations()
             _unionAnnotations!!
         }
+    private var _unionAttribute: Array<UnionTypeAttribute?>? = null
+    val unionAttribute: UnionTypeAttribute?
+        get() = _unionAttribute.elseIfNull {
+            _unionAttribute = arrayOf(rawType.attributes.firstIsInstanceOrNull<UnionTypeAttribute>())
+            _unionAttribute!!
+        }[0]
     private var _unionRaw: List<ConeKotlinType>? = null
     context(context: CheckerContext?, reporter: DiagnosticReporter?)
     val unionRaw: List<ConeKotlinType>
@@ -78,7 +85,7 @@ class UnionConeType private constructor(
                 _unionRaw = listOf()
                 return@elseIfNull listOf()
             }
-            _unionRaw = rawType.extractUnionAttribute() ?: unionAnnotations.unwrapUnionOrEmptyOrNullIfError(declaration)
+            _unionRaw = unionAttribute?.types ?: unionAnnotations.unwrapUnionOrEmptyOrNullIfError(declaration)
             if (_unionRaw == null) {
                 _isBroken = true
                 _unionRaw = listOf()
@@ -99,26 +106,12 @@ class UnionConeType private constructor(
             _union = unionOverride ?: declaredUnion
             _union!!
         }
-    private var _unionOrThis: List<ConeKotlinType>? = null
-    context(context: CheckerContext?, reporter: DiagnosticReporter?)
-    val unionOrThis: List<ConeKotlinType>
-        get() = _unionOrThis.elseIfNull {
-            _unionOrThis = union.ifEmpty { listOf(thisType) }
-            _unionOrThis!!
-        }
     private var _unionWrapped: List<UnionConeType>? = null
     context(context: CheckerContext?, reporter: DiagnosticReporter?)
     val unionWrapped: List<UnionConeType>
         get() = _unionWrapped.elseIfNull {
             _unionWrapped = union.map { copyTo(it) }
             _unionWrapped!!
-        }
-    private var _unionWrappedOrThis: List<UnionConeType>? = null
-    context(context: CheckerContext?, reporter: DiagnosticReporter?)
-    val unionWrappedOrThis: List<UnionConeType>
-        get() = _unionWrappedOrThis.elseIfNull {
-            _unionWrappedOrThis = unionWrapped.ifEmpty { listOf(this) }
-            _unionWrappedOrThis!!
         }
     private var _resolvedUnion: List<ConeKotlinType>? = null
     context(context: CheckerContext?, reporter: DiagnosticReporter?)
@@ -163,13 +156,6 @@ class UnionConeType private constructor(
         get() = _fullyResolvedUnionWrapped.elseIfNull {
             _fullyResolvedUnionWrapped = fullyResolvedUnion.map { copyTo(it) }
             _fullyResolvedUnionWrapped!!
-        }
-    private var _fullyResolvedUnionWrappedOrThis: List<UnionConeType>? = null
-    context(context: CheckerContext?, reporter: DiagnosticReporter?)
-    val fullyResolvedUnionWrappedOrThis: List<UnionConeType>
-        get() = _fullyResolvedUnionWrappedOrThis.elseIfNull {
-            _fullyResolvedUnionWrappedOrThis = fullyResolvedUnionWrapped.ifEmpty { listOf(this) }
-            _fullyResolvedUnionWrappedOrThis!!
         }
 
 
