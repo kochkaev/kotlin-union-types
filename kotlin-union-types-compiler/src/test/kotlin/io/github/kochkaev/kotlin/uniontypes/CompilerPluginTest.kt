@@ -946,3 +946,52 @@ class NestedUnionAndIntersectionTests : BaseCompilerPluginTest() {
         """, shouldFail = true, errorMessage = "Only one of 'type', 'typeParameter', 'union', or 'intersection' can be used at the same time.")
     }
 }
+
+class VarianceTests : BaseCompilerPluginTest() {
+    @Test
+    fun `should allow covariant (out) assignment`() {
+        compile("""
+            typealias ListOfCharSequence = @UnionAdv(Type(List::class, generics = [Type(type = CharSequence::class, variance = Variance.OUT)])) Any
+            val x: ListOfCharSequence = listOf<String>("a", "b")
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect covariant (out) assignment`() {
+        compile("""
+            typealias ListOfNumber = @UnionAdv(Type(List::class, generics = [Type(type = Number::class, variance = Variance.OUT)])) Any
+            val x: ListOfNumber = listOf<Any>(1, "a")
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should allow contravariant (in) assignment`() {
+        compile("""
+            typealias ConsumerOfNumber = @UnionAdv(Type(MutableList::class, generics = [Type(type = Number::class, variance = Variance.IN)])) Any
+            val x: ConsumerOfNumber = mutableListOf<Any>()
+        """)
+    }
+
+    @Test
+    fun `should fail for incorrect contravariant (in) assignment`() {
+        compile(
+            """
+            typealias ConsumerOfInt = @UnionAdv(Type(MutableList::class, generics = [Type(type = Number::class, variance = Variance.IN)])) Any
+            val x: ConsumerOfInt = mutableListOf<Int>()
+        """, shouldFail = true, errorMessage = "Type mismatch")
+    }
+
+    @Test
+    fun `should fail when variance is used on a non-generic type`() {
+        compile("""
+            val x: @UnionAdv(Type(type = String::class, variance = Variance.OUT)) Any = "a"
+        """, shouldFail = true, errorMessage = "Variance can only be specified for generic types.")
+    }
+    
+    @Test
+    fun `should fail when variance is used on a top-level type in a union`() {
+        compile("""
+            val x: @UnionAdv(Type(type = List::class, generics = [Type(String::class)], variance = Variance.OUT)) Any = listOf("a")
+        """, shouldFail = true, errorMessage = "Variance can only be specified for generic types.")
+    }
+}

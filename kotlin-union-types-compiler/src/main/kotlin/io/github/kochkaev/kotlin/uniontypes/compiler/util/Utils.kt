@@ -25,6 +25,7 @@ import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
 import org.jetbrains.kotlin.fir.expressions.FirGetClassCall
 import org.jetbrains.kotlin.fir.expressions.FirLiteralExpression
+import org.jetbrains.kotlin.fir.expressions.FirPropertyAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirQualifiedAccessExpression
 import org.jetbrains.kotlin.fir.expressions.FirSpreadArgumentExpression
 import org.jetbrains.kotlin.fir.expressions.FirVarargArgumentsExpression
@@ -75,6 +76,7 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.types.Variance
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import kotlin.collections.contains
+import kotlin.collections.forEach
 
 val UNION_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.Union"))
 val UNION_ADV_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.UnionAdv"))
@@ -192,11 +194,16 @@ internal fun FirAnnotation.unwrapOrEmptyOrNullIfError(
     allowedTypesArgument.arguments.forEach { argument ->
         val raw = if (isAdv) {
             // Advanced
-            argument.unwrapAdvancedType(typeParameters)?.filterNotNull()
+            val unwrapped = argument.unwrapAdvancedType(typeParameters)
+            if (unwrapped != null && unwrapped.second != Variance.INVARIANT) report(
+                source = source,
+                factory = UnionTypeErrors.VARIANCE_NOT_ON_GENERIC_TYPE
+            )
+            unwrapped?.first?.filterNotNull()
         } else {
             // Simple
             val kclassType = argument.resolvedType
-            listOf((kclassType.typeArguments.firstOrNull() as? ConeKotlinTypeProjection)?.type).filterNotNull()
+            listOfNotNull((kclassType.typeArguments.firstOrNull() as? ConeKotlinTypeProjection)?.type)
         }
         if (raw == null) return null
         if (recursive) raw.forEach { raw ->
@@ -215,7 +222,7 @@ internal fun ConeKotlinType.tryRecursiveResolveTypealias(simple: ClassId, advanc
 context(context: CheckerContext, reporter: DiagnosticReporter?)
 internal fun FirExpression.unwrapAdvancedType(
     typeParameters: List<FirTypeParameterSymbol> = listOf(),
-): List<ConeKotlinType?>? {
+): Pair<List<ConeKotlinType?>, Variance>? {
     val arguments = (this as? FirCall)?.resolvedArgumentMappingIncludingContextArguments ?: return null
     if (arguments.isEmpty()) return null
 
@@ -232,8 +239,11 @@ internal fun FirExpression.unwrapAdvancedType(
         value.name.asString() == "union"
     } .keys.firstOrNull() as? FirCollectionLiteral
     val intersectionExpr = arguments.filter { (key, value) ->
-        key is FirCollectionLiteral && value.name.asString() == "intersection"
+        value.name.asString() == "intersection"
     } .keys.firstOrNull() as? FirCollectionLiteral
+    val varianceExpr = arguments.filter { (key, value) ->
+        value.name.asString() == "variance"
+    } .keys.firstOrNull() as? FirPropertyAccessExpression
 
     if ((typeExpr != null || genericsExpr != null) + (typeParameterExpr != null) + (unionExpr != null) + (intersectionExpr != null) > 1) {
         report(
@@ -263,13 +273,15 @@ internal fun FirExpression.unwrapAdvancedType(
             val rawGenerics = genericsExpr?.arguments
             val typeArguments = rawGenerics?.unwrapVararg()?.map { nestedExpr ->
                 val targetExpr = if (nestedExpr is FirSpreadArgumentExpression) nestedExpr.expression else nestedExpr
-                val nestedTypes = targetExpr.unwrapAdvancedType(typeParameters)?.filterNotNull() ?: emptyList()
+                val nested = targetExpr.unwrapAdvancedType(typeParameters) ?: return null
+                val nestedTypes = nested.first.filterNotNull()
+                val nestedVariance = nested.second
                 val coneType = when {
                     nestedTypes.isEmpty() -> null
                     nestedTypes.size == 1 -> nestedTypes.single()
                     else -> createUnionCarrierType(nestedTypes)
                 }
-                coneType?.toTypeProjection(ProjectionKind.INVARIANT) ?: ConeStarProjection
+                coneType?.toTypeProjection(nestedVariance) ?: ConeStarProjection
             } ?: emptyList()
             val typed = if (typeArguments.isNotEmpty())
                     rawType.withArguments(typeArguments.toTypedArray())
@@ -277,13 +289,27 @@ internal fun FirExpression.unwrapAdvancedType(
             listOf(typed)
         }
         unionExpr != null -> {
-            val nestedUnions = unionExpr.arguments.map { it.unwrapAdvancedType(typeParameters)?.filterNotNull() ?: return null }
+            val nested = unionExpr.arguments.map { it.unwrapAdvancedType(typeParameters) ?: return null }
+            nested.forEach { (_, variance) ->
+                if (variance != Variance.INVARIANT) report(
+                    source = source,
+                    factory = UnionTypeErrors.VARIANCE_NOT_ON_GENERIC_TYPE
+                )
+            }
+            val nestedUnions = nested.map { it.first.filterNotNull() }
             nestedUnions.subList(1, nestedUnions.size)
                 .fold(nestedUnions[0]) { acc, union -> acc.union(union).toList() }
                 .distinct()
         }
         intersectionExpr != null -> {
-            val nestedUnions = intersectionExpr.arguments.map { it.unwrapAdvancedType(typeParameters)?.filterNotNull() ?: return null }
+            val nested = intersectionExpr.arguments.map { it.unwrapAdvancedType(typeParameters) ?: return null }
+            nested.forEach { (_, variance) ->
+                if (variance != Variance.INVARIANT) report(
+                    source = source,
+                    factory = UnionTypeErrors.VARIANCE_NOT_ON_GENERIC_TYPE
+                )
+            }
+            val nestedUnions = nested.map { it.first.filterNotNull() }
             if (nestedUnions.isEmpty()) {
                 listOf(ConeStarProjection.type)
             } else if (nestedUnions.size == 1) {
@@ -296,7 +322,14 @@ internal fun FirExpression.unwrapAdvancedType(
         else -> listOf(ConeStarProjection.type)
     }
 
-    return resolved
+    val variance = when (varianceExpr?.calleeReference?.name?.asString()) {
+        "IN" -> Variance.IN_VARIANCE
+        "OUT" -> Variance.OUT_VARIANCE
+        "INVARIANT", null -> Variance.INVARIANT
+        else -> return null
+    }
+
+    return resolved to variance
 }
 
 context(context: CheckerContext)

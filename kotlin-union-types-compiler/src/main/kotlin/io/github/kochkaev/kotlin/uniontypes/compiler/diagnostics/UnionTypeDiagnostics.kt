@@ -33,6 +33,7 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
     val INTERSECTION_AND_UNION_AT_SAME_TIME by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val INTERSECTION_ON_UNION_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
     val RECURSIVE_IN_UNION_OR_INTERSECTION by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
+    val VARIANCE_NOT_ON_GENERIC_TYPE by error0<PsiElement>(SourceElementPositioningStrategies.DEFAULT)
 
     val TYPE_PARAMETER_NOT_FOUND by error1<PsiElement, String>(SourceElementPositioningStrategies.DEFAULT)
 
@@ -101,6 +102,10 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                     put(
                         factory = RECURSIVE_IN_UNION_OR_INTERSECTION,
                         message = "Recursive types in union/intersection are not supported."
+                    )
+                    put(
+                        factory = VARIANCE_NOT_ON_GENERIC_TYPE,
+                        message = "Variance can only be specified for generic types."
                     )
 
                     put(
