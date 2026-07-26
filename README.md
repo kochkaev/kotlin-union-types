@@ -54,6 +54,8 @@ The plugin is applicable to any Kotlin Multiplatform target, including JVM, JS, 
 - **Static Type Checking**: Enforces that only allowed types are assigned or returned.
 - **Union and Intersection Types**: Supports both "one-of" (union) and "all-of" (intersection) constraints.
 - **Simple and Advanced Annotations**: Use `@Union`/`@Intersection` for basic cases and `@UnionAdv`/`@IntersectionAdv` for generics and type parameters.
+- **Nested Unions and Intersections**: Construct complex, hierarchical type constraints.
+- **Variance Control**: Specify `in`/`out` variance for generic type arguments.
 - **Type Alias Support**: Create readable and reusable custom types.
 - **Generic and Type Parameter Support**: Define constraints that include generic types (e.g., `List<String>`) or forward type parameters from functions/classes.
 - **Inheritance and Overriding**: Correctly handles complex types in overridden methods and properties.
@@ -95,7 +97,7 @@ val log: Text = 123L // Compilation Error: Long is not CharSequence.
 
 ### 3. Advanced Usage with `@UnionAdv` and `@IntersectionAdv`
 
-For scenarios involving generics or forwarding type parameters, use the "advanced" annotations.
+For scenarios involving generics, type parameters, nested structures, or variance, use the "advanced" annotations.
 
 #### With Generics
 
@@ -128,6 +130,54 @@ process<Int>(123)       // OK, T is Int
 process<Double>(1.23)   // OK, T is Double
 process<Int>("hello")   // OK
 process<Int>(true)      // Compilation Error!
+```
+
+#### With Nested Unions and Intersections
+
+Create hierarchical type constraints by nesting `union` and `intersection` structures.
+
+```kotlin
+// Represents a String, or (an Int or a Double).
+typealias StringOrNumber = @UnionAdv(
+    Type(String::class),
+    Type(union = [Type(Int::class), Type(Double::class)])
+) Any
+
+val a: StringOrNumber = "text"  // OK
+val b: StringOrNumber = 123     // OK
+val c: StringOrNumber = 45.6    // OK
+val d: StringOrNumber = true    // Compilation Error!
+
+// Represents a type that is a Number and also (a CharSequence or a CustomInterface).
+typealias ComplexIntersection = @IntersectionAdv(
+    Type(Number::class),
+    Type(union = [Type(CharSequence::class), Type(CustomInterface::class)])
+) Any
+```
+
+#### With Variance Control
+
+Specify variance for generic type arguments to control subtyping relationships. The `variance` parameter is **only** valid for a `Type` used inside a `generics` array. Applying it elsewhere will cause a compilation error.
+
+```kotlin
+import io.github.kochkaev.kotlin.uniontypes.annotations.Variance
+
+// The list is covariant ('out'), so a List<String> can be assigned to it.
+typealias ListOfCharSequence = @UnionAdv(
+    Type(List::class, generics = [Type(type = CharSequence::class, variance = Variance.OUT)])
+) Any
+
+val list: ListOfCharSequence = listOf<String>("a", "b") // OK
+
+// The consumer is contravariant ('in'), so a MutableList<Any> can be assigned.
+typealias ConsumerOfNumber = @UnionAdv(
+    Type(MutableList::class, generics = [Type(type = Number::class, variance = Variance.IN)])
+) Any
+
+val consumer: ConsumerOfNumber = mutableListOf<Any>() // OK
+
+// ERROR: Variance is specified on a top-level type, not a generic argument.
+val x: @UnionAdv(Type(type = List::class, variance = Variance.OUT)) Any = listOf("a")
 ```
 
 ## Fundamental Limitations of the Kotlin K2 Compiler
@@ -177,7 +227,7 @@ These are limitations of the current plugin implementation, not of Kotlin itself
 
 1.  **Concrete Base Types Required**: Union and intersection types can only be declared on a concrete base type, not on a type parameter.
 2.  **No Simultaneous Annotations**: A type cannot be annotated as both a union and an intersection type.
-3.  **Conflicting `type` and `typeParameter`**: In advanced annotations (`@UnionAdv`, `@IntersectionAdv`), the `Type` annotation cannot specify both `type` and `typeParameter` simultaneously.
+3.  **Conflicting `type`, `typeParameter`, `union`, and `intersection`**: In advanced annotations (`@UnionAdv`, `@IntersectionAdv`), the `Type` annotation cannot specify more than one of these at the same time.
     ```kotlin
     class MyClass<T> {
         // Compilation Error: `type` and `typeParameter` cannot be used together.

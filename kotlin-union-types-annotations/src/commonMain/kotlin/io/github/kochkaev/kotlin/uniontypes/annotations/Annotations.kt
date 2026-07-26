@@ -64,43 +64,46 @@ import kotlin.reflect.KClass
 public annotation class Union(vararg val types: KClass<*>)
 
 /**
- * Defines an advanced union type with support for generics and type parameters.
+ * Defines an advanced union type with support for generics, type parameters, and nested unions/intersections.
  *
  * `@UnionAdv` is a more powerful alternative to `@Union` when you need to define
- * union types involving generic type arguments or forward type parameters from
- * the enclosing scope (like from a generic function or class).
+ * union types involving generic type arguments, forward type parameters from
+ * the enclosing scope (like from a generic function or class), or construct complex
+ * nested type structures.
  *
  * **Usage with Generics:**
  *
  * Use `Type` to specify a main type and its `generics`.
  *
  * ```kotlin
- * // Represents a union of List<String> or List<Int>
- * val list: @UnionAdv(
+ * // Represents a union of List<String> or a single Int.
+ * typealias ListOfStringOrInt = @UnionAdv(
  *     Type(List::class, generics = [Type(String::class)]),
- *     Type(List::class, generics = [Type(Int::class)])
+ *     Type(Int::class)
  * ) Any
- *
- * list = listOf("a", "b") // OK
- * list = listOf(1, 2)     // OK
- * list = listOf(1.0)      // Compilation error: Type mismatch
  * ```
  *
  * **Usage with Type Parameters:**
  *
  * You can reference a type parameter from a generic function or class by its name.
- * This allows creating flexible union types that adapt to the caller's context.
  *
  * ```kotlin
  * // This function accepts either a value of type T or a String.
  * fun <T : Number> process(value: @UnionAdv(Type(typeParameter = "T"), Type(String::class)) Any) {
  *     // ...
  * }
+ * ```
  *
- * process<Int>(123)       // OK, T is Int
- * process<Double>(1.23)   // OK, T is Double
- * process<Int>("hello")   // OK
- * process<Int>(true)      // Compilation error: Type mismatch
+ * **Usage with Nested Unions/Intersections:**
+ *
+ * You can embed unions or intersections within other unions to create complex type constraints.
+ *
+ * ```kotlin
+ * // Represents a String, or (an Int or a Double).
+ * typealias StringOrNumber = @UnionAdv(
+ *     Type(String::class),
+ *     Type(union = [Type(Int::class), Type(Double::class)])
+ * ) Any
  * ```
  *
  * @param types A vararg of `Type` instances, each defining a component of the union.
@@ -127,7 +130,7 @@ public annotation class UnionAdv(vararg val types: Type)
  * val value: @Intersection(CharSequence::class, Serializable::class) Any
  *
  * value = "hello" // OK, String is both CharSequence and Serializable
- * value = 123L // Compilation Error: Long is not CharSequence
+ * value = 123L    // Compilation Error: Long is not CharSequence
  * ```
  *
  * **With Type Aliases:**
@@ -152,10 +155,11 @@ public annotation class UnionAdv(vararg val types: Type)
 public annotation class Intersection(vararg val types: KClass<*>)
 
 /**
- * Defines an advanced intersection type with support for generics and type parameters.
+ * Defines an advanced intersection type with support for generics, type parameters, and nested unions/intersections.
  *
  * `@IntersectionAdv` provides the same functionality as `@Intersection` but adds the ability
- * to work with generic type arguments and forward type parameters from an enclosing scope.
+ * to work with generic type arguments, forward type parameters from an enclosing scope, or
+ * construct complex nested type structures.
  *
  * **Usage with Generics:**
  *
@@ -163,11 +167,20 @@ public annotation class Intersection(vararg val types: KClass<*>)
  * // Requires a value to be a Comparable list of Strings.
  * val value: @IntersectionAdv(
  *     Type(List::class, generics = [Type(String::class)]),
- *     Type(RandomAccess::class)
+ *     Type(Comparable::class)
  * ) Any
+ * ```
  *
- * // ArrayList<String> implements both List<String> and RandomAccess.
- * value = arrayListOf("a", "b") // OK
+ * **Usage with Nested Unions/Intersections:**
+ *
+ * You can embed unions or intersections within other intersections.
+ *
+ * ```kotlin
+ * // Represents a type that is a Number and also (a CharSequence or a CustomInterface).
+ * typealias ComplexIntersection = @IntersectionAdv(
+ *     Type(Number::class),
+ *     Type(union = [Type(CharSequence::class), Type(CustomInterface::class)])
+ * ) Any
  * ```
  *
  * @param types A vararg of `Type` instances, each defining a component of the intersection.
@@ -182,13 +195,19 @@ public annotation class IntersectionAdv(vararg val types: Type)
 
 /**
  * A descriptor used within `@UnionAdv` and `@IntersectionAdv` to define a type,
- * including its generics or a reference to a type parameter.
+ * including its generics, variance, or a reference to a type parameter. It can also
+ * be used to create nested union and intersection types.
  *
- * **You must provide either `type` or `typeParameter`, but not both.**
+ * **You must provide exactly one of `type`, `typeParameter`, `union`, or `intersection`.**
  *
  * @param type The main `KClass` of this type component (e.g., `List::class`).
  * @param typeParameter The name of a type parameter from an enclosing scope (e.g., `"T"` in `fun <T>...`).
  * @param generics An array of nested `Type` instances for specifying generic arguments (e.g., for `List<String>`, `type` would be `List::class` and `generics` would be `[Type(String::class)]`).
+ * @param union An array of `Type` instances to form a nested union type.
+ * @param intersection An array of `Type` instances to form a nested intersection type.
+ * @param variance The variance for this type **only when it is used as a generic argument** (i.e., inside a `generics` array).
+ *                 Specifying it for a top-level type in `@UnionAdv`/`@IntersectionAdv` or for a type within a nested
+ *                 `union`/`intersection` will result in a compile error.
  */
 @Target()
 @Retention(AnnotationRetention.RUNTIME) // Keep for reflection
@@ -201,6 +220,15 @@ public annotation class Type(
     val variance: Variance = Variance.INVARIANT,
 )
 
+/**
+ * Specifies the variance of a generic type parameter.
+ *
+ * This is only meaningful when used on a `Type` that is a generic argument.
+ *
+ * - **INVARIANT**: The type must match exactly.
+ * - **OUT**: A covariant (read-only) type. Allows subtypes (e.g., `List<String>` is a subtype of `List<CharSequence>`).
+ * - **IN**: A contravariant (write-only) type. Allows supertypes (e.g., a consumer of `Number` can consume an `Int`).
+ */
 public enum class Variance {
     INVARIANT, OUT, IN
 }
