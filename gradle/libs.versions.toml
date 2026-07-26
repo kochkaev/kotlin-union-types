@@ -4,7 +4,7 @@
 
 [versions]
 kotlin = "2.4.10"
-latestSupportedKotlin = "2.4.10"
+latestSupportedKotlin = "2.4.20-Beta2"
 mavenPublishing = "0.37.0"
 # K2 plugin
 kctFork = "0.13.0"
@@ -17,7 +17,7 @@ ideaSince = "241"
 # Gradle plugin
 gradlePluginPublish = "2.1.1"
 # kotlin-union-types
-unionTypes = "1.0.0"
+unionTypes = "1.0.1"
 
 [libraries]
 kotlinGradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
