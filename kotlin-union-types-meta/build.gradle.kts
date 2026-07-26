@@ -38,16 +38,37 @@ kotlin {
     mingwX64()
 }
 
-version = libs.versions.unionTypes.get()
+fun getLatestMetaVersion(): String {
+    val file = rootProject.file("meta.versions")
+    if (!file.exists()) return libs.versions.unionTypes.get()
+
+    return file.useLines { lines ->
+        lines.map { it.trim() }.lastOrNull { it.isNotEmpty() && !it.startsWith("#") } ?: libs.versions.unionTypes.get()
+    }
+}
+
+val globalVersion = libs.versions.unionTypes.get()
+val metaVersion = getLatestMetaVersion()
+
+version = metaVersion
 group = "io.github.kochkaev.kotlin.uniontypes"
+
+val isMetaUpdatedInThisRelease = (metaVersion == globalVersion)
+if (!isMetaUpdatedInThisRelease) {
+    tasks.matching {
+        it.name.startsWith("publish") || it.name.startsWith("sign")
+    }.configureEach {
+        enabled = false
+    }
+}
 
 mavenPublishing {
     publishToMavenCentral(automaticRelease = true)
     signAllPublications()
 
     pom {
-        name.set("Kotlin Union & Intersection Types Annotations")
-        description.set("Annotations for Union & Intersection Types FIR K2 Plugin")
+        name.set("Kotlin Union & Intersection Types Meta")
+        description.set("Annotations and etc. for Union & Intersection Types FIR K2 Plugin")
         url.set("https://github.com/kochkaev/kotlin-union-types")
         licenses {
             license {

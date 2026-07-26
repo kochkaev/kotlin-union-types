@@ -19,8 +19,8 @@ gradlePluginPublish = "2.1.1"
 unionTypes = "1.0.0-SNAPSHOT"
 
 [libraries]
-kotlinGradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
-kotlinGradlePluginApi = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin-api", version.ref = "kotlin" }
+kotlinGradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlinGradlePluginApi = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin-api", version.ref = "kotlin" }
 kotlinCompilerEmbeddable = { group = "org.jetbrains.kotlin", name = "kotlin-compiler-embeddable", version.ref = "kotlin" }
 kctFork = { group = "dev.zacsweers.kctfork", name = "core", version.ref = "kctFork" }
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }

@@ -2,7 +2,8 @@
 
 ###### In development
 [![Build](https://github.com/kochkaev/kotlin-union-types/actions/workflows/build.yml/badge.svg)](https://github.com/kochkaev/kotlin-union-types/actions/workflows/build.yml)
-[![Gradle Plugin Portal](https://img.shields.io/gradle-plugin-portal/v/io.github.kochkaev.kotlin.uniontypes.svg)](https://plugins.gradle.org/plugin/io.github.kochkaev.kotlin.uniontypes)
+[![Gradle Plugin Portal](https://img.shields.io/gradle-plugin-portal/v/io.github.kochkaev.kotlin.uniontypes.svg?label=Gradle%20Plugin%20Portal)](https://plugins.gradle.org/plugin/io.github.kochkaev.kotlin.uniontypes)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.kochkaev.kotlin.uniontypes/io.github.kochkaev.kotlin.uniontypes.gradle.plugin.svg?label=Maven%20Central)](https://search.maven.org/search?q=g:io.github.kochkaev.kotlin.uniontypes%20AND%20a:io.github.kochkaev.kotlin.uniontypes.gradle.plugin)
 
 This project is a Kotlin compiler plugin (K2/FIR) that introduces support for **Union and Intersection Types** via annotations. It allows you to create complex type constraints that are verified at compile time, enhancing Kotlin's type system without adding any runtime overhead.
 

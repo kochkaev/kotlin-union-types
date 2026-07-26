@@ -18,7 +18,7 @@ dependencies {
     testImplementation(libs.kctFork)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
-    testImplementation(project(":kotlin-union-types-annotations"))
+    testImplementation(project(":kotlin-union-types-meta"))
 }
 //val compileKotlin: KotlinCompile by tasks
 //compileKotlin.compilerOptions {
