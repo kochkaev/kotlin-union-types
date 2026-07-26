@@ -1,6 +1,6 @@
 @file:Suppress("unused", "RedundantVisibilityModifier")
 
-package io.github.kochkaev.kotlin.uniontypes.annotations
+package io.github.kochkaev.kotlin.uniontypes.meta
 
 import kotlin.reflect.KClass
 

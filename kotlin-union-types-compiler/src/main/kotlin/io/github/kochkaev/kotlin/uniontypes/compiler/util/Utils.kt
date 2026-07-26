@@ -57,7 +57,6 @@ import org.jetbrains.kotlin.fir.types.ConeStarProjection
 import org.jetbrains.kotlin.fir.types.ConeTypeIntersector
 import org.jetbrains.kotlin.fir.types.FirTypeProjectionWithVariance
 import org.jetbrains.kotlin.fir.types.FirTypeRef
-import org.jetbrains.kotlin.fir.types.ProjectionKind
 import org.jetbrains.kotlin.fir.types.abbreviatedType
 import org.jetbrains.kotlin.fir.types.classId
 import org.jetbrains.kotlin.fir.types.coneType
@@ -78,11 +77,11 @@ import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import kotlin.collections.contains
 import kotlin.collections.forEach
 
-val UNION_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.Union"))
-val UNION_ADV_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.UnionAdv"))
+val UNION_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.meta.Union"))
+val UNION_ADV_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.meta.UnionAdv"))
 val unionAnnotationsClassIds = listOf(UNION_ANNOTATION_CLASS_ID, UNION_ADV_ANNOTATION_CLASS_ID)
-val INTERSECTION_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.Intersection"))
-val INTERSECTION_ADV_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.annotations.IntersectionAdv"))
+val INTERSECTION_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.meta.Intersection"))
+val INTERSECTION_ADV_ANNOTATION_CLASS_ID = ClassId.topLevel(FqName("io.github.kochkaev.kotlin.uniontypes.meta.IntersectionAdv"))
 val intersectionAnnotationsClassIds = listOf(INTERSECTION_ANNOTATION_CLASS_ID, INTERSECTION_ADV_ANNOTATION_CLASS_ID)
 
 internal fun ConeKotlinType.getAnnotations(list: List<ClassId>): List<FirAnnotation> =
@@ -238,10 +237,10 @@ internal fun FirExpression.unwrapAdvancedType(
     val unionExpr = arguments.filter { (_, value) ->
         value.name.asString() == "union"
     } .keys.firstOrNull() as? FirCollectionLiteral
-    val intersectionExpr = arguments.filter { (key, value) ->
+    val intersectionExpr = arguments.filter { (_, value) ->
         value.name.asString() == "intersection"
     } .keys.firstOrNull() as? FirCollectionLiteral
-    val varianceExpr = arguments.filter { (key, value) ->
+    val varianceExpr = arguments.filter { (_, value) ->
         value.name.asString() == "variance"
     } .keys.firstOrNull() as? FirPropertyAccessExpression
 
@@ -340,11 +339,6 @@ fun ConeKotlinType.withUnionAttribute(types: List<ConeKotlinType>): ConeKotlinTy
     if (types.size == 1) return types.single()
     val attribute = UnionTypeAttribute(types)
     return withAttributes(attributes.add(attribute))
-}
-
-fun ConeKotlinType.extractUnionAttribute(): List<ConeKotlinType>? {
-    val attribute = attributes[UnionTypeAttribute::class]
-    return attribute?.types
 }
 
 fun List<FirExpression>.unwrapVararg(): List<FirExpression>? = let {

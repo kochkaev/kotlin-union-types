@@ -22,7 +22,7 @@ abstract class BaseCompilerPluginTest {
         val sourceFile = SourceFile.kotlin("Test.kt", """
             package io.github.kochkaev.kotlin.uniontypes.test
             
-            import io.github.kochkaev.kotlin.uniontypes.annotations.*
+            import io.github.kochkaev.kotlin.uniontypes.meta.*
             import kotlin.reflect.KClass
 
             $source

@@ -71,7 +71,7 @@ internal data class KotlinSemVer(
 ) : Comparable<KotlinSemVer> {
 
     companion object {
-        fun parse(version: String): KotlinSemVer {
+        operator fun invoke(version: String): KotlinSemVer {
             val parts = version.substringBefore("-").split(".")
             val suffix = if (version.contains("-")) version.substringAfter("-") else null
 
@@ -106,13 +106,13 @@ internal object PluginVersionResolver {
 
     private val sortedCompatibilityList: List<Pair<KotlinSemVer, String>> by lazy {
         BuildConfig.COMPATIBILITY_MAP
-            .map { KotlinSemVer.parse(it.key) to it.value }
+            .map { KotlinSemVer(it.key) to it.value }
             .sortedBy { it.first }
     }
 
     private val sortedMetaList: List<Pair<KotlinSemVer, String>> by lazy {
         BuildConfig.META_LIST
-            .map { KotlinSemVer.parse(it) to it }
+            .map { KotlinSemVer(it) to it }
             .sortedBy { it.first }
     }
 
@@ -121,7 +121,7 @@ internal object PluginVersionResolver {
             error("COMPATIBILITY_MAP is empty. Ensure compatibility.properties is populated.")
         }
 
-        val userVersion = KotlinSemVer.parse(userKotlinVersionStr)
+        val userVersion = KotlinSemVer(userKotlinVersionStr)
         val matchedEntry = sortedCompatibilityList.findLast { it.first <= userVersion }
 
         if (matchedEntry == null) {
@@ -133,7 +133,7 @@ internal object PluginVersionResolver {
             return sortedCompatibilityList.first().second
         }
 
-        if (userVersion > KotlinSemVer.parse(BuildConfig.KOTLIN_VERSION)) {
+        if (userVersion > KotlinSemVer(BuildConfig.KOTLIN_VERSION)) {
             logger?.warn(
                 "[kotlin-union-types] Kotlin version $userKotlinVersionStr is newer than the latest explicitly " +
                 "supported version (${BuildConfig.KOTLIN_VERSION}). Proceeding with plugin version ${matchedEntry.second}, " +
@@ -149,7 +149,7 @@ internal object PluginVersionResolver {
             error("META_LIST is empty. Ensure annotations.properties is populated.")
         }
 
-        val pluginVersion = KotlinSemVer.parse(compilerPluginVersionStr)
+        val pluginVersion = KotlinSemVer(compilerPluginVersionStr)
         val matchedEntry = sortedMetaList.findLast { it.first <= pluginVersion }
 
         if (matchedEntry == null) {

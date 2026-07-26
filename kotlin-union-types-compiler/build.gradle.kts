@@ -1,3 +1,5 @@
+import io.github.kochkaev.kotlin.uniontypes.build.KotlinSemVer
+
 plugins {
     kotlin("jvm")
     alias(libs.plugins.mavenPublishing)
@@ -29,8 +31,31 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 }
 
+fun getLatestCompilerVersion(): String {
+    val file = rootProject.file("compatibility.properties")
+    if (!file.exists()) return libs.versions.unionTypes.get()
+    return file.useLines { lines ->
+        lines.map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .map { it.substringAfter("=").trim() }
+            .maxOfOrNull { KotlinSemVer(it) }?.toString()
+            ?: libs.versions.unionTypes.get()
+    }
+}
+
+val globalVersion = libs.versions.unionTypes.get()
+val compilerVersion = getLatestCompilerVersion()
+
 version = libs.versions.unionTypes.get()
 group = "io.github.kochkaev.kotlin.uniontypes"
+
+if (compilerVersion != globalVersion) {
+    tasks.matching {
+        it.name.startsWith("publish") || it.name.startsWith("sign")
+    }.configureEach {
+        enabled = false
+    }
+}
 
 mavenPublishing {
     publishToMavenCentral(automaticRelease = true)

@@ -1,3 +1,4 @@
+import io.github.kochkaev.kotlin.uniontypes.build.KotlinSemVer
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
@@ -41,9 +42,12 @@ kotlin {
 fun getLatestMetaVersion(): String {
     val file = rootProject.file("meta.versions")
     if (!file.exists()) return libs.versions.unionTypes.get()
-
     return file.useLines { lines ->
-        lines.map { it.trim() }.lastOrNull { it.isNotEmpty() && !it.startsWith("#") } ?: libs.versions.unionTypes.get()
+        lines
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .maxOfOrNull { KotlinSemVer(it) }?.toString()
+            ?: libs.versions.unionTypes.get()
     }
 }
 
@@ -53,8 +57,7 @@ val metaVersion = getLatestMetaVersion()
 version = metaVersion
 group = "io.github.kochkaev.kotlin.uniontypes"
 
-val isMetaUpdatedInThisRelease = (metaVersion == globalVersion)
-if (!isMetaUpdatedInThisRelease) {
+if (metaVersion != globalVersion) {
     tasks.matching {
         it.name.startsWith("publish") || it.name.startsWith("sign")
     }.configureEach {

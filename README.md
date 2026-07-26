@@ -50,6 +50,38 @@ plugins {
 
 The plugin is applicable to any Kotlin Multiplatform target, including JVM, JS, Native, and Android.
 
+## Versioning
+
+The versioning of this project is designed to automatically align the correct compiler plugin and meta-module with the Kotlin version used in your project. The Gradle plugin handles this dependency management for you.
+
+At the root of the project, two files control this mechanism:
+
+- `compatibility.properties`: This file maps a Kotlin version to the first compatible version of the `kotlin-union-types-compiler` plugin. The Gradle plugin uses this to determine which compiler plugin version to use for a given range of Kotlin versions. For example, if the file contains:
+  ```properties
+  2.2.0=1.0.0
+  2.3.0=1.1.0
+  2.4.0=1.2.0
+  ```
+  The plugin will interpret this as: for Kotlin versions in the range `[2.2.0, 2.3.0)`, use compiler plugin version `1.0.0`; for `[2.3.0, 2.4.0)`, use `1.1.0`; and for Kotlin versions from `2.4.0` up to the latest version tested (from `libs.versions.toml`), use `1.2.0`.
+
+- `meta.versions`: This file contains a list of all published versions of the `kotlin-union-types-meta` module.
+
+### How it Works
+
+The `io.github.kochkaev.kotlin.uniontypes` Gradle plugin performs the following steps:
+1.  It detects the Kotlin version declared in your project.
+2.  It consults `compatibility.properties` to find the most suitable version of the `kotlin-union-types-compiler` plugin.
+    - If your Kotlin version is lower than the first version listed, the earliest available plugin version is used (as if it were the first listed version).
+    - If your Kotlin version is higher than the latest version the plugin was tested against, the latest available plugin version is used (as if it were the last listed version).
+3.  It then determines the latest version of the `kotlin-union-types-meta` module that is compatible with the selected compiler plugin version.
+
+This system allows the three main components to be versioned independently:
+- **`kotlin-union-types-gradle-plugin`**: This is the most frequently updated component. A new version is released for every new supported Kotlin version or when the compiler plugin is updated.
+- **`kotlin-union-types-compiler`**: This is updated only when there are functional changes to the compiler plugin's code. The new version of the compiler plugin will match the current version of the Gradle plugin.
+- **`kotlin-union-types-meta`**: This is the most stable component and is updated infrequently. Its latest version corresponds to the first compiler plugin version (`kotlin-union-types-compiler`) that supports this specific meta version.
+
+This separation ensures that you don't need to update all components when only one part changes, providing greater stability.
+
 ## Features
 
 - **Static Type Checking**: Enforces that only allowed types are assigned or returned.
@@ -69,7 +101,7 @@ The plugin is applicable to any Kotlin Multiplatform target, including JVM, JS, 
 A **union type** allows a value to be one of several types.
 
 ```kotlin
-import io.github.kochkaev.kotlin.uniontypes.annotations.Union
+import io.github.kochkaev.kotlin.uniontypes.meta.Union
 
 // This variable can hold either a String or an Int.
 typealias StringOrInt = @Union(String::class, Int::class) Any
@@ -86,14 +118,14 @@ processId(true)  // Compilation Error: Type mismatch!
 An **intersection type** requires a value to satisfy all specified types simultaneously. It's like a local, ad-hoc `where` clause.
 
 ```kotlin
-import io.github.kochkaev.kotlin.uniontypes.annotations.Intersection
+import io.github.kochkaev.kotlin.uniontypes.meta.Intersection
 import java.io.Serializable
 
 // This value must be both a CharSequence and Serializable.
 typealias Text = @Intersection(CharSequence::class, Serializable::class) Any
 
 val message: Text = "Hello" // OK, String is both.
-val log: Text = 123L // Compilation Error: Long is not CharSequence.
+val log: Text = 123L        // Compilation Error: Long is not CharSequence.
 ```
 
 ### 3. Advanced Usage with `@UnionAdv` and `@IntersectionAdv`
@@ -103,8 +135,8 @@ For scenarios involving generics, type parameters, nested structures, or varianc
 #### With Generics
 
 ```kotlin
-import io.github.kochkaev.kotlin.uniontypes.annotations.UnionAdv
-import io.github.kochkaev.kotlin.uniontypes.annotations.Type
+import io.github.kochkaev.kotlin.uniontypes.meta.UnionAdv
+import io.github.kochkaev.kotlin.uniontypes.meta.Type
 
 // A union of List<String> or a single Int
 typealias ListOfStringOrInt = @UnionAdv(
@@ -161,7 +193,7 @@ typealias ComplexIntersection = @IntersectionAdv(
 Specify variance for generic type arguments to control subtyping relationships. The `variance` parameter is **only** valid for a `Type` used inside a `generics` array. Applying it elsewhere will cause a compilation error.
 
 ```kotlin
-import io.github.kochkaev.kotlin.uniontypes.annotations.Variance
+import io.github.kochkaev.kotlin.uniontypes.meta.Variance
 
 // The list is covariant ('out'), so a List<String> can be assigned to it.
 typealias ListOfCharSequence = @UnionAdv(
@@ -257,7 +289,7 @@ Due to the compile-time-only nature of this plugin, there are scenarios where th
 
 ## Project Structure
 
-- `kotlin-union-types-annotations`: Annotation definitions (`@Union`, `@Intersection`, etc.).
+- `kotlin-union-types-meta`: Annotation definitions (`@Union`, `@Intersection`, etc.). Formerly `kotlin-union-types-annotations`.
 - `kotlin-union-types-compiler`: The K2/FIR compiler plugin.
 - `kotlin-union-types-gradle-plugin`: The Gradle plugin for easy setup.
 - `kotlin-union-types-idea-plugin`: IDEA plugin (not yet implemented).
