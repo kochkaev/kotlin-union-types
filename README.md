@@ -18,6 +18,8 @@ The design of this plugin is guided by two core principles:
 
 2.  **Backward Compatibility**: Code written with this plugin remains fully compatible with the standard Kotlin compiler. If you compile a project using these annotations without the plugin, it will still compile successfully, as the annotations will simply be ignored. 
 
+---
+
 ## Installation
 
 The plugin is published to the Gradle Plugin Portal. To use it, first ensure the Gradle Plugin Portal is included in your plugin repositories in `settings.gradle.kts` (or `settings.gradle`):
@@ -82,6 +84,12 @@ This system allows the three main components to be versioned independently:
 
 This separation ensures that you don't need to update all components when only one part changes, providing greater stability.
 
+
+[![Latest Gradle plugin](https://img.shields.io/gradle-plugin-portal/v/io.github.kochkaev.kotlin.uniontypes.svg?label=Latest%20Gradle%20plugin)](https://plugins.gradle.org/plugin/io.github.kochkaev.kotlin.uniontypes)
+[![Latest compiler plugin](https://img.shields.io/maven-central/v/io.github.kochkaev.kotlin.uniontypes/kotlin-union-types-compiler.svg?label=Latest%20compiler%20plugin)](https://search.maven.org/search?q=g:io.github.kochkaev.kotlin.uniontypes%20AND%20a:kotlin-union-types-compiler)
+[![Latest meta](https://img.shields.io/maven-central/v/io.github.kochkaev.kotlin.uniontypes/kotlin-union-types-meta.svg?label=Latest%20meta)](https://search.maven.org/search?q=g:io.github.kochkaev.kotlin.uniontypes%20AND%20a:kotlin-union-types-meta)
+---
+
 ## Features
 
 - **Static Type Checking**: Enforces that only allowed types are assigned or returned.
@@ -92,7 +100,7 @@ This separation ensures that you don't need to update all components when only o
 - **Type Alias Support**: Create readable and reusable custom types.
 - **Generic and Type Parameter Support**: Define constraints that include generic types (e.g., `List<String>`) or forward type parameters from functions/classes.
 - **Inheritance and Overriding**: Correctly handles complex types in overridden methods and properties.
-- **IDE Integration**: Type mismatches are reported directly in the IDE, just like standard Kotlin type errors.
+- **IDE Integration** *(not implemented yet)*: Type mismatches are reported directly in the IDE, just like standard Kotlin type errors.
 
 ## Usage
 

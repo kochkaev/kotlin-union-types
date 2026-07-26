@@ -1,0 +1,113 @@
+name: Check for New Kotlin Version
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get Latest Kotlin Version from Maven Central
+        id: get_kotlin
+        run: |
+          LATEST_VERSION=$(curl -s https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-compiler-embeddable/maven-metadata.xml \
+            | grep -oP '(?<=<latest>)[^<]+')
+          
+          echo "Latest Kotlin version on Maven Central: $LATEST_VERSION"
+          echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get Current Kotlin Version from libs.versions.toml
+        id: get_current
+        run: |
+          CURRENT_VERSION=$(grep -oP '(?<=kotlin = ")[^"]+' gradle/libs.versions.toml)
+          echo "Current Kotlin version in TOML: $CURRENT_VERSION"
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check for Existing Issue (Anti-Spam)
+        id: check_issue
+        if: steps.get_kotlin.outputs.latest_version != steps.get_current.outputs.current_version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_TITLE="Auto-update failed for Kotlin ${{ steps.get_kotlin.outputs.latest_version }}"
+          ISSUE_COUNT=$(gh issue list --search "\"$ISSUE_TITLE\" in:title" --state open --json number | jq length)
+          
+          if [ "$ISSUE_COUNT" -gt 0 ]; then
+            echo "Issue already exists. Skipping run to prevent spam."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Patch libs.versions.toml if New Version Available
+        id: patch
+        if: steps.get_kotlin.outputs.latest_version != steps.get_current.outputs.current_version && steps.check_issue.outputs.skip == 'false'
+        run: |
+          NEW_KOTLIN="${{ steps.get_kotlin.outputs.latest_version }}"
+          CURRENT_PLUGIN_VER=$(grep -oP '(?<=unionTypes = ")[^"]+' gradle/libs.versions.toml)
+          
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_PLUGIN_VER"
+          CLEAN_PATCH=$(echo $PATCH | grep -oE '^[0-9]+')
+          SUFFIX=$(echo $PATCH | grep -oE -- '-.*' || echo "")
+          NEW_PATCH=$((CLEAN_PATCH + 1))
+          NEW_PLUGIN_VER="$MAJOR.$MINOR.$NEW_PATCH$SUFFIX"
+          
+          sed -i -E "s/^kotlin = \".+\"/kotlin = \"$NEW_KOTLIN\"/" gradle/libs.versions.toml
+          sed -i -E "s/^unionTypes = \".+\"/unionTypes = \"$NEW_PLUGIN_VER\"/" gradle/libs.versions.toml
+          
+          echo "updated=true" >> $GITHUB_OUTPUT
+          echo "new_plugin_ver=$NEW_PLUGIN_VER" >> $GITHUB_OUTPUT
+
+      - name: Set up JDK 26
+        if: steps.patch.outputs.updated == 'true'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '26.0.2'
+          distribution: 'zulu'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        if: steps.patch.outputs.updated == 'true'
+        run: chmod +x gradlew
+
+      - name: Test Build with New Kotlin Version
+        if: steps.patch.outputs.updated == 'true'
+        run: ./gradlew test
+
+      - name: Report Failure (Create Issue)
+        if: failure() && steps.patch.outputs.updated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "Auto-update failed for Kotlin ${{ steps.get_kotlin.outputs.latest_version }}" \
+            --body "Automated tests failed for Kotlin `${{ steps.get_kotlin.outputs.latest_version }}`.\n\nMost likely, you need to update the `kctFork` version in `libs.versions.toml` or fix binary compatibility errors with the new compiler." \
+            --label "bug"
+
+      - name: Create Pull Request
+        if: failure() == false && steps.patch.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: auto-update to Kotlin ${{ steps.get_kotlin.outputs.latest_version }} & bump plugin to ${{ steps.patch.outputs.new_plugin_ver }}"
+          branch: "auto-update/kotlin-${{ steps.get_kotlin.outputs.latest_version }}"
+          title: "🚀 Auto-update: Kotlin ${{ steps.get_kotlin.outputs.latest_version }}"
+          body: |
+            The new Kotlin version was found on Maven Central: `${{ steps.get_kotlin.outputs.latest_version }}`.
+            
+            - Kotlin version was updated.
+            - Plugin version was increase to ${{ steps.patch.outputs.new_plugin_ver }}.
+            - All tests was successfully completed.
+          labels: |
+            dependencies
+            automated pr
