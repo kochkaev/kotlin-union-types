@@ -14,7 +14,7 @@ import kotlin.collections.component2
 abstract class GenerateBuildConfig : DefaultTask() {
 
     @get:Input
-    abstract val kotlinVersion: Property<String>
+    abstract val latestSupportedKotlinVersion: Property<String>
 
     @get:Input
     abstract val compatibilityMap: MapProperty<String, String>
@@ -36,7 +36,7 @@ abstract class GenerateBuildConfig : DefaultTask() {
             package io.github.kochkaev.kotlin.uniontypes.gradle
 
             internal object BuildConfig {
-                const val KOTLIN_VERSION = "${kotlinVersion.get()}"
+                const val LATEST_SUPPORTED_KOTLIN_VERSION = "${latestSupportedKotlinVersion.get()}"
                 val COMPATIBILITY_MAP: Map<String, String> = mapOf(
                     ${compatibilityMap.get().toKotlinMapString()}
                 )

@@ -133,10 +133,10 @@ internal object PluginVersionResolver {
             return sortedCompatibilityList.first().second
         }
 
-        if (userVersion > KotlinSemVer(BuildConfig.KOTLIN_VERSION)) {
+        if (userVersion > KotlinSemVer(BuildConfig.LATEST_SUPPORTED_KOTLIN_VERSION)) {
             logger?.warn(
                 "[kotlin-union-types] Kotlin version $userKotlinVersionStr is newer than the latest explicitly " +
-                "supported version (${BuildConfig.KOTLIN_VERSION}). Proceeding with plugin version ${matchedEntry.second}, " +
+                "supported version (${BuildConfig.LATEST_SUPPORTED_KOTLIN_VERSION}). Proceeding with plugin version ${matchedEntry.second}, " +
                 "but compatibility is not guaranteed."
             )
         }
