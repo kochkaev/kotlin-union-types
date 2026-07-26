@@ -9,7 +9,6 @@ plugins {
 }
 
 val unionTypesVersion = libs.versions.unionTypes.get()
-val currentKotlinVersion = libs.versions.kotlin.get()
 
 group = "io.github.kochkaev.kotlin.uniontypes"
 version = unionTypesVersion
@@ -37,7 +36,7 @@ fun loadPropertiesMap(fileName: String): Map<String, String> {
 val generateBuildConfig = tasks.register<GenerateBuildConfig>("generateBuildConfig") {
     description = "Generates BuildConfig.kt for the Gradle plugin"
 
-    kotlinVersion.set(libs.versions.kotlin.get())
+    latestSupportedKotlinVersion.set(libs.versions.latestSupportedKotlin.get())
 
     compatibilityMap.set(loadPropertiesMap("compatibility.properties"))
     metaList.set(loadPropertiesList("meta.versions"))

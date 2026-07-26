@@ -6,7 +6,6 @@ import org.jetbrains.kotlin.com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.diagnostics.*
 import org.jetbrains.kotlin.diagnostics.rendering.BaseDiagnosticRendererFactory
 import org.jetbrains.kotlin.diagnostics.rendering.Renderer
-import org.jetbrains.kotlin.diagnostics.rendering.Renderers
 import org.jetbrains.kotlin.fir.analysis.checkers.context.CheckerContext
 import org.jetbrains.kotlin.fir.renderer.ConeIdRenderer
 import org.jetbrains.kotlin.fir.renderer.ConeIdShortRenderer
@@ -111,7 +110,7 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
                     put(
                         factory = TYPE_PARAMETER_NOT_FOUND,
                         message = "Type parameter {0} not found",
-                        rendererA = Renderers.TO_STRING
+                        rendererA = STRING
                     )
 
                     put(
@@ -132,9 +131,10 @@ object UnionTypeErrors: KtDiagnosticsContainer() {
     }
 }
 object UnionTypeDiagnosticRenderers {
-    val TYPE_WITH_UNIONS = Renderer<UnionConeType> { type: UnionConeType ->
+    val TYPE_WITH_UNIONS = Renderer { type: UnionConeType ->
         type.renderReadable()
     }
+    val STRING = Renderer { type: String -> type }
     fun UnionConeType.renderReadable(preRenderedConstructors: Map<TypeConstructorMarker, String>? = null): String {
         val builder = StringBuilder()
         val renderer = ConeTypeRendererWithUnion(builder, preRenderedConstructors, toBuilder()) { ConeIdShortRenderer() }

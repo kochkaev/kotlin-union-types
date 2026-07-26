@@ -63,6 +63,7 @@ jobs:
           NEW_PLUGIN_VER="$MAJOR.$MINOR.$NEW_PATCH$SUFFIX"
           
           sed -i -E "s/^kotlin = \".+\"/kotlin = \"$NEW_KOTLIN\"/" gradle/libs.versions.toml
+          sed -i -E "s/^latestSupportedKotlin = \".+\"/kotlin = \"$NEW_KOTLIN\"/" gradle/libs.versions.toml
           sed -i -E "s/^unionTypes = \".+\"/unionTypes = \"$NEW_PLUGIN_VER\"/" gradle/libs.versions.toml
           
           echo "updated=true" >> $GITHUB_OUTPUT
@@ -91,7 +92,7 @@ jobs:
         run: |
           gh issue create \
             --title "Auto-update failed for Kotlin ${{ steps.get_kotlin.outputs.latest_version }}" \
-            --body "Automated tests failed for Kotlin `${{ steps.get_kotlin.outputs.latest_version }}`.\n\nMost likely, you need to update the `kctFork` version in `libs.versions.toml` or fix binary compatibility errors with the new compiler." \
+            --body "Automated tests failed for Kotlin \`${{ steps.get_kotlin.outputs.latest_version }}\`. Most likely, you need to update the \`kctFork\` version in \`libs.versions.toml\` or fix binary compatibility errors with the new compiler." \
             --label "bug"
 
       - name: Create Pull Request
