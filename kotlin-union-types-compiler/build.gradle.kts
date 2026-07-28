@@ -21,11 +21,50 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.platformLauncher)
     testImplementation(project(":kotlin-union-types-meta"))
+
+//    constraints {
+//        testImplementation(libs.kotlinCompilerEmbeddable) {
+//            because("You need to synchronize the compiler version with the kctFork version.")
+//        }
+//    }
 }
 //val compileKotlin: KotlinCompile by tasks
 //compileKotlin.compilerOptions {
 //    freeCompilerArgs.set(listOf("-Xcontext-parameters"))
 //}
+
+val mainConfigurations = setOf(
+    "compileClasspath",
+    "runtimeClasspath",
+    "apiElements",
+    "runtimeElements"
+)
+val customMainKotlinVersion = project.findProperty("mainKotlinVersion") as? String
+if (!customMainKotlinVersion.isNullOrBlank()) {
+    val targetDependency = libs.kotlinCompilerEmbeddable.get()
+    configurations.matching { it.name in mainConfigurations } .configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("${targetDependency.group}:${targetDependency.name}"))
+                .using(module("${targetDependency.group}:${targetDependency.name}:$customMainKotlinVersion"))
+                .because("Forcing Kotlin version for main runtime classpath")
+        }
+    }
+}
+val testConfigurations = setOf(
+    "testCompileClasspath",
+    "testRuntimeClasspath"
+)
+val customTestKotlinVersion = project.findProperty("testKotlinVersion") as? String
+if (!customTestKotlinVersion.isNullOrBlank()) {
+    val targetDependency = libs.kotlinCompilerEmbeddable.get()
+    configurations.matching { it.name in testConfigurations } .configureEach {
+        resolutionStrategy.dependencySubstitution {
+            substitute(module("${targetDependency.group}:${targetDependency.name}"))
+                .using(module("${targetDependency.group}:${targetDependency.name}:$customTestKotlinVersion"))
+                .because("Forcing Kotlin version for test runtime classpath")
+        }
+    }
+}
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()

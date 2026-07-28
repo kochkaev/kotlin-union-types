@@ -1,5 +1,6 @@
 import io.github.kochkaev.kotlin.uniontypes.build.GenerateBuildConfig
-import java.util.Properties
+import io.github.kochkaev.kotlin.uniontypes.build.loadPropertiesMap
+import io.github.kochkaev.kotlin.uniontypes.build.loadPropertiesList
 
 plugins {
     kotlin("jvm")
@@ -13,33 +14,13 @@ val unionTypesVersion = libs.versions.unionTypes.get()
 group = "io.github.kochkaev.kotlin.uniontypes"
 version = unionTypesVersion
 
-fun loadPropertiesList(fileName: String): List<String> {
-    val file = rootProject.file(fileName)
-    if (!file.exists()) return emptyList()
-    return file.useLines { lines ->
-        lines.map { line -> line.trim() }
-             .filter { it.isNotEmpty() && !it.startsWith("#") }
-             .toList()
-    }
-}
-fun loadPropertiesMap(fileName: String): Map<String, String> {
-    val map = mutableMapOf<String, String>()
-    val file = rootProject.file(fileName)
-    if (file.exists()) {
-        val props = Properties()
-        file.inputStream().use { props.load(it) }
-        props.forEach { (k, v) -> map[k.toString()] = v.toString() }
-    }
-    return map
-}
-
 val generateBuildConfig = tasks.register<GenerateBuildConfig>("generateBuildConfig") {
     description = "Generates BuildConfig.kt for the Gradle plugin"
 
     latestSupportedKotlinVersion.set(libs.versions.latestSupportedKotlin.get())
 
-    compatibilityMap.set(loadPropertiesMap("compatibility.properties"))
-    metaList.set(loadPropertiesList("meta.versions"))
+    compatibilityMap.set(project.rootDir.resolve("compatibility.properties").loadPropertiesMap())
+    metaList.set(project.rootDir.resolve("meta.versions").loadPropertiesList())
 
     outputDirectory.set(layout.buildDirectory.dir("generated/source/buildconfig/main/kotlin"))
 }
