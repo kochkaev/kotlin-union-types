@@ -26,6 +26,8 @@ kotlinCompilerEmbeddable = { group = "org.jetbrains.kotlin", name = "kotlin-comp
 kctFork = { group = "dev.zacsweers.kctfork", name = "core", version.ref = "kctFork" }
 junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.ref = "junit-jupiter" }
 junit-platformLauncher = { group = "org.junit.platform", name = "junit-platform-launcher" }
+# build-logic
+build-mavenPublishing = { group = "com.vanniktech", name = "gradle-maven-publish-plugin", version.ref = "mavenPublishing" }
 
 [plugins]
 mavenPublishing = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublishing" }

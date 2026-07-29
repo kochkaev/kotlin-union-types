@@ -1,19 +1,19 @@
 import io.github.kochkaev.kotlin.uniontypes.build.*
 
-plugins {
-    alias(libs.plugins.mavenPublishing) apply false
-    id("io.github.kochkaev.kotlin.uniontypes.maven-publishing")
-}
+val mavenPublishingPlugin = libs.plugins.mavenPublishing
+val globalPluginVersion = libs.versions.unionTypes
+version = project.findProperty("overrideVersion") as? String ?: globalPluginVersion.get()
+group = "io.github.kochkaev.kotlin.uniontypes"
 
 val compatibilityPropertiesFile = file("compatibility.properties")
+val compatibilityMatrixFile = project.layout.buildDirectory.file("tmp/compatibility_matrix.txt")
 val stagingDeploymentDir = project.layout.buildDirectory.dir("maven-staging")
 
-val generateCompatibilityMatrix = tasks.register<CompatibilityMatrixTask>("generateCompatibilityMatrix") {
+val generateCompatibilityMatrix = tasks.register <CompatibilityMatrixTask>("generateCompatibilityMatrix") {
     description = "Run tests on each Kotlin version in project bounds to generate compatibility matrix"
-    minKotlinVersion = libs.versions.kotlin
-    maxKotlinVersion = libs.versions.latestSupportedKotlin
+    kotlinVersions = getKotlinVersionsFromMaven(libs.versions.kotlin.get(), libs.versions.latestSupportedKotlin.get())
     rootDir = project.rootDir
-    compatibilityOutputFile = project.layout.buildDirectory.file("tmp/compatibility_matrix.txt")
+    compatibilityOutputFile = compatibilityMatrixFile
 }
 
 val checkPortCompatibility = tasks.register<CheckKotlinPortCompatibilityTask>("checkPortCompatibility") {
@@ -40,14 +40,9 @@ val regenerateCompatibilityProperties = tasks.register<UpdateCompatibilityProper
     outputFile = compatibilityPropertiesFile
 
     featureRelease = true
-    dependsOn(generateCompatibilityMatrix)
-    matrixResults = generateCompatibilityMatrix
+    compatibilityMatrix = generateCompatibilityMatrix
         .flatMap { it.compatibilityOutputFile }
-        .map { regularFile ->
-            regularFile.asFile
-                .loadPropertiesMap()
-                .mapValues { it.value.toBoolean() }
-        }
+        .map { it.asFile.loadCompatibilityMatrix() }
 }
 
 val generateStagingDeployment = tasks.register<GenerateStagingDeploymentTask>("generateStagingDeployment") {
@@ -56,6 +51,8 @@ val generateStagingDeployment = tasks.register<GenerateStagingDeploymentTask>("g
     globalPluginVersion = libs.versions.unionTypes
     publishMeta = true
     stagingDir = stagingDeploymentDir
-    compatibilityProperties = compatibilityPropertiesFile
+    compatibilityMatrix = generateCompatibilityMatrix
+        .flatMap { it.compatibilityOutputFile }
+        .map { it.asFile.loadCompatibilityMatrix() }
     rootDir = project.rootDir
 }

@@ -154,3 +154,15 @@ fun File.loadPropertiesList(): List<String> {
     }
     return list
 }
+fun File.loadCompatibilityMatrix(): Map<String, Boolean> =
+    loadPropertiesMap().mapValues { it.value.toBoolean() }
+
+fun Map<String, Boolean>.resolveVersioning(plugin: String): Map<KotlinSemVer, KotlinSemVer> = this
+    .filterValues { it }
+    .mapKeys { (key, _) -> KotlinSemVer(key) }
+    .toSortedMap()
+    .mapValues { (key, _) ->
+        var new = plugin
+        if (size > 1) new += "-Kotlin$key"
+        KotlinSemVer(new)
+    }

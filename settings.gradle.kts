@@ -25,5 +25,6 @@ include(":kotlin-union-types-meta")
 include(":kotlin-union-types-compiler")
 include(":kotlin-union-types-idea-plugin")
 include(":kotlin-union-types-gradle-plugin")
+includeBuild("build-logic")
 
 rootProject.name = "kotlin-union-types"

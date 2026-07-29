@@ -3,20 +3,20 @@ package io.github.kochkaev.kotlin.uniontypes.build
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
-import org.gradle.api.provider.Property
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
+@CacheableTask
 abstract class CompatibilityMatrixTask: DefaultTask() {
 
     @get:Input
-    abstract val minKotlinVersion: Property<String>
+    abstract val kotlinVersions: ListProperty<String>
 
-    @get:Input
-    abstract val maxKotlinVersion: Property<String>
-
-    @get:Input
+    @get:Internal
     abstract val rootDir: DirectoryProperty
 
     @get:OutputFile
@@ -24,8 +24,7 @@ abstract class CompatibilityMatrixTask: DefaultTask() {
 
     @TaskAction
     fun runMatrix() {
-        val rawVersions = getKotlinVersionsFromMaven(minKotlinVersion.get(), maxKotlinVersion.get())
-        val versions = rawVersions.map { KotlinSemVer(it) }.sorted()
+        val versions = kotlinVersions.get().map { KotlinSemVer(it) }.sorted()
 
         if (versions.isEmpty()) {
             logger.lifecycle("${LogFormatting.BOLD}${LogFormatting.RED}⚠️ No Kotlin versions found in range${LogFormatting.RESET}")
@@ -35,8 +34,6 @@ abstract class CompatibilityMatrixTask: DefaultTask() {
         logger.lifecycle("""
             |${LogFormatting.BOLD}⏳ Starting compatibility matrix processing... ${LogFormatting.RESET}
             |   ${LogFormatting.BOLD}Kotlin versions to test: ${LogFormatting.RESET}${LogFormatting.YELLOW}${versions.joinToString()}${LogFormatting.RESET}
-            |   ${LogFormatting.BOLD}Min Kotlin version: ${LogFormatting.RESET}${LogFormatting.YELLOW}${minKotlinVersion.get()}${LogFormatting.RESET}
-            |   ${LogFormatting.BOLD}Max Kotlin version: ${LogFormatting.RESET}${LogFormatting.YELLOW}${maxKotlinVersion.get()}${LogFormatting.RESET}
         ${LogFormatting.RESET}""".trimMargin("|"))
 
         var currentMainVersion = versions.first()

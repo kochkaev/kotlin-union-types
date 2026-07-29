@@ -21,7 +21,7 @@ abstract class UpdateCompatibilityPropertiesTask : DefaultTask() {
     abstract val targetKotlinVersion: Property<String>
 
     @get:Input @get:Optional
-    abstract val matrixResults: MapProperty<String, Boolean>
+    abstract val compatibilityMatrix: MapProperty<String, Boolean>
 
     @get:OutputFile
     abstract val outputFile: RegularFileProperty
@@ -31,19 +31,16 @@ abstract class UpdateCompatibilityPropertiesTask : DefaultTask() {
         val file = outputFile.get().asFile
         val baseVersion = globalPluginVersion.get()
 
-        val breakpoints = matrixResults.orNull
+        val versioning = compatibilityMatrix.orNull
             ?.takeIf { it.isNotEmpty() }
-            ?.entries
-            ?.filter { it.value }
-            ?.map { KotlinSemVer(it.key) }
-            ?.sorted()
+            ?.resolveVersioning(baseVersion)
 
         logger.lifecycle("""
             |${LogFormatting.BOLD}⏳ Updating compatibility.properties... ${LogFormatting.RESET}
             |   ${LogFormatting.BOLD}Feature Release: ${LogFormatting.RESET}${LogFormatting.YELLOW}${featureRelease.get()}${LogFormatting.RESET}
             |   ${LogFormatting.BOLD}Global Plugin Version: ${LogFormatting.RESET}${LogFormatting.YELLOW}${globalPluginVersion.get()}${LogFormatting.RESET}
             |   ${LogFormatting.BOLD}Target Kotlin Version: ${LogFormatting.RESET}${LogFormatting.YELLOW}${targetKotlinVersion.getOrElse("NONE")}${LogFormatting.RESET}
-            |   ${LogFormatting.BOLD}Matrix Breakpoints: ${LogFormatting.RESET}${LogFormatting.YELLOW}${breakpoints?.joinToString() ?: "NONE"}${LogFormatting.RESET}
+            |   ${LogFormatting.BOLD}Matrix Breakpoints: ${LogFormatting.RESET}${LogFormatting.YELLOW}${versioning?.keys?.joinToString() ?: "NONE"}${LogFormatting.RESET}
         ${LogFormatting.RESET}""".trimMargin("|"))
 
         if (!featureRelease.get()) {
@@ -53,27 +50,20 @@ abstract class UpdateCompatibilityPropertiesTask : DefaultTask() {
                 logger.lifecycle("${LogFormatting.BOLD}${LogFormatting.GREEN}📝 Mapped Kotlin $kotlinVer -> $baseVersion${LogFormatting.RESET}")
             }
         } else {
-            if (breakpoints == null) {
+            if (versioning == null) {
                 logger.lifecycle("${LogFormatting.BOLD}${LogFormatting.RED}⚠️ No Kotlin versions found in compatibility matrix results. Skipping update.${LogFormatting.RESET}")
                 return
             }
 
+            val minVersion = versioning.keys.first()
             val current = file.loadPropertiesMap()
-                .filterKeys { KotlinSemVer(it) < breakpoints.first() }
-                .entries.fold("") { aac, (key, value) ->
-                    aac + "${key}=${value}\n"
-                }
+                .filterKeys { KotlinSemVer(it) < minVersion }
+                .entries
+                .joinToString("\n") { (key, value) -> "$key=$value" }
+            val newLines = versioning.entries
+                .joinToString("\n") { (key, value) -> "$key=$value" }
 
-            val hasAbiBreaks = breakpoints.size > 1
-            val newLines = mutableListOf<String>()
-
-            breakpoints.forEach { kotlin ->
-                var plugin = baseVersion
-                if (hasAbiBreaks) plugin += "-Kotlin$kotlin"
-                newLines += "$kotlin=$plugin"
-            }
-
-            file.writeText(current + newLines.joinToString("\n"))
+            file.writeText(current + "\n" + newLines)
             logger.lifecycle("${LogFormatting.BOLD}${LogFormatting.GREEN}📝 Re-generated compatibility.properties${LogFormatting.RESET}")
         }
     }

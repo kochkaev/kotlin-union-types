@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="kotlin-union-types-meta-jvm">
+    <output-path>$PROJECT_DIR$/kotlin-union-types-meta/build/libs</output-path>
+    <root id="archive" name="kotlin-union-types-meta-jvm.jar">
+      <element id="module-output" name="kotlin-union-types.kotlin-union-types-meta.jvmMain" />
+    </root>
+  </artifact>
+</component>

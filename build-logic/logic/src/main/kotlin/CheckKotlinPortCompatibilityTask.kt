@@ -5,6 +5,10 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
 abstract class CheckKotlinPortCompatibilityTask: DefaultTask() {
@@ -15,10 +19,11 @@ abstract class CheckKotlinPortCompatibilityTask: DefaultTask() {
     @get:Input
     abstract val latestSupportedKotlinVersion: Property<String> // Latest tested version (from libs.versions.toml)
 
-    @get:Input
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.RELATIVE)
     abstract val outputFile: RegularFileProperty
 
-    @get:Input
+    @get:Internal
     abstract val rootDir: DirectoryProperty
 
     @TaskAction

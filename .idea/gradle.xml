@@ -7,9 +7,11 @@
         <compositeConfiguration>
           <compositeBuild compositeDefinitionSource="SCRIPT">
             <builds>
-              <build path="$PROJECT_DIR$/buildSrc" name="buildSrc">
+              <build path="$PROJECT_DIR$/build-logic" name="build-logic">
                 <projects>
-                  <project path="$PROJECT_DIR$/buildSrc" />
+                  <project path="$PROJECT_DIR$/build-logic" />
+                  <project path="$PROJECT_DIR$/build-logic/convention" />
+                  <project path="$PROJECT_DIR$/build-logic/logic" />
                 </projects>
               </build>
             </builds>
@@ -19,7 +21,9 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/buildSrc" />
+            <option value="$PROJECT_DIR$/build-logic" />
+            <option value="$PROJECT_DIR$/build-logic/convention" />
+            <option value="$PROJECT_DIR$/build-logic/logic" />
             <option value="$PROJECT_DIR$/kotlin-union-types-compiler" />
             <option value="$PROJECT_DIR$/kotlin-union-types-gradle-plugin" />
             <option value="$PROJECT_DIR$/kotlin-union-types-idea-plugin" />
