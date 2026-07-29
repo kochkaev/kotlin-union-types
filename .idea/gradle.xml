@@ -10,8 +10,10 @@
               <build path="$PROJECT_DIR$/build-logic" name="build-logic">
                 <projects>
                   <project path="$PROJECT_DIR$/build-logic" />
-                  <project path="$PROJECT_DIR$/build-logic/convention" />
-                  <project path="$PROJECT_DIR$/build-logic/logic" />
+                  <project path="$PROJECT_DIR$/build-logic/gradle-plugin-gen" />
+                  <project path="$PROJECT_DIR$/build-logic/maven" />
+                  <project path="$PROJECT_DIR$/build-logic/tasks" />
+                  <project path="$PROJECT_DIR$/build-logic/utils" />
                 </projects>
               </build>
             </builds>
@@ -22,8 +24,10 @@
           <set>
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/build-logic" />
-            <option value="$PROJECT_DIR$/build-logic/convention" />
-            <option value="$PROJECT_DIR$/build-logic/logic" />
+            <option value="$PROJECT_DIR$/build-logic/gradle-plugin-gen" />
+            <option value="$PROJECT_DIR$/build-logic/maven" />
+            <option value="$PROJECT_DIR$/build-logic/tasks" />
+            <option value="$PROJECT_DIR$/build-logic/utils" />
             <option value="$PROJECT_DIR$/kotlin-union-types-compiler" />
             <option value="$PROJECT_DIR$/kotlin-union-types-gradle-plugin" />
             <option value="$PROJECT_DIR$/kotlin-union-types-idea-plugin" />

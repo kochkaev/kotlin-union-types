@@ -11,7 +11,9 @@ dependencyResolutionManagement {
     }
 }
 
-include(":convention")
-include(":logic")
+include(":utils")
+include(":maven")
+include(":tasks")
+include(":gradle-plugin-gen")
 
 rootProject.name = "build-logic"

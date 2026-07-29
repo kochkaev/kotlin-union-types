@@ -1,4 +1,4 @@
-package io.github.kochkaev.kotlin.uniontypes.build
+package io.github.kochkaev.kotlin.uniontypes.build.utils
 
 import org.gradle.api.logging.Logger
 import org.gradle.tooling.GradleConnector
@@ -43,7 +43,7 @@ fun getKotlinVersionsFromMaven(minVersionStr: String, maxVersionStr: String): Li
         .toList()
 }
 
-internal fun File.runGradle(
+fun File.runGradle(
     task: String,
     arguments: List<String>,
     logPrefix: String = "",
@@ -91,7 +91,7 @@ enum class Compatibility {
     INCOMPATIBLE
 }
 
-internal fun File.kotlinCompatibleTest(
+fun File.kotlinCompatibleTest(
     targetVersion: String,
     latestSupportedVersion: String,
     logger: Logger,

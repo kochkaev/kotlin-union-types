@@ -3,5 +3,6 @@ plugins {
 }
 
 dependencies {
+    api(project(":utils"))
     implementation(libs.kotlinGradlePlugin)
 }

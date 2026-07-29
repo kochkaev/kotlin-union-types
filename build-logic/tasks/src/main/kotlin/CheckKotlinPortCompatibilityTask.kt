@@ -1,4 +1,4 @@
-package io.github.kochkaev.kotlin.uniontypes.build
+package io.github.kochkaev.kotlin.uniontypes.build.tasks
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
@@ -10,6 +10,7 @@ import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import io.github.kochkaev.kotlin.uniontypes.build.utils.*
 
 abstract class CheckKotlinPortCompatibilityTask: DefaultTask() {
 

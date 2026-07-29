@@ -1,4 +1,4 @@
-package io.github.kochkaev.kotlin.uniontypes.build
+package io.github.kochkaev.kotlin.uniontypes.build.utils
 
 data class KotlinSemVer(
     val major: Int,

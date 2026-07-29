@@ -1,4 +1,4 @@
-package io.github.kochkaev.kotlin.uniontypes.build
+package io.github.kochkaev.kotlin.uniontypes.build.gradlePluginGen
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty

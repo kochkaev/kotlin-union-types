@@ -2,7 +2,7 @@
 plugins {
     kotlin("jvm")
     alias(libs.plugins.mavenPublishing)
-    id("uniontypes.maven-info")
+    id("io.github.kochkaev.kotlin.uniontypes.build.maven.info")
 }
 
 repositories {

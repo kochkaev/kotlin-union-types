@@ -1,4 +1,4 @@
-package io.github.kochkaev.kotlin.uniontypes.build
+package io.github.kochkaev.kotlin.uniontypes.build.tasks
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
@@ -8,6 +8,7 @@ import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
+import io.github.kochkaev.kotlin.uniontypes.build.utils.*
 
 abstract class UpdateCompatibilityPropertiesTask : DefaultTask() {
 

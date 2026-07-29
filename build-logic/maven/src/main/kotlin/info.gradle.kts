@@ -1,3 +1,5 @@
+package io.github.kochkaev.kotlin.uniontypes.build.maven
+
 plugins {
     id("com.vanniktech.maven.publish")
 }
