@@ -5,7 +5,7 @@ import io.github.kochkaev.kotlin.uniontypes.build.utils.*
 
 val extension = extensions.create<TasksExtension>("unionTypesTasks")
 
-val generateCompatibilityMatrix = tasks.register <CompatibilityMatrixTask>("generateCompatibilityMatrix") {
+val generateCompatibilityMatrix = tasks.register<CompatibilityMatrixTask>("generateCompatibilityMatrix") {
     description = "Run tests on each Kotlin version in project bounds to generate compatibility matrix"
     kotlinVersions = getKotlinVersionsFromMaven(extension.kotlinVersion.get(), extension.latestSupportedKotlinVersion.get())
     rootDir = project.rootDir

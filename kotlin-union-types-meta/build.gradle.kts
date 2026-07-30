@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     kotlin("multiplatform")
-    alias(libs.plugins.mavenPublishing)
+//    alias(libs.plugins.mavenPublishing)
     id("io.github.kochkaev.kotlin.uniontypes.build.maven.info")
 }
 

@@ -18,6 +18,8 @@ ideaSince = "241"
 gradlePluginPublish = "2.1.1"
 # kotlin-union-types
 unionTypes = "1.0.1"
+# build-logic
+build-okHttp = "4.12.0"
 
 [libraries]
 kotlinGradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -28,6 +30,7 @@ junit-jupiter = { group = "org.junit.jupiter", name = "junit-jupiter", version.r
 junit-platformLauncher = { group = "org.junit.platform", name = "junit-platform-launcher" }
 # build-logic
 build-mavenPublishing = { group = "com.vanniktech", name = "gradle-maven-publish-plugin", version.ref = "mavenPublishing" }
+build-okHttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "build-okHttp" }
 
 [plugins]
 mavenPublishing = { id = "com.vanniktech.maven.publish", version.ref = "mavenPublishing" }

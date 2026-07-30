@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm")
     alias(libs.plugins.gradlePluginPublish)
-    alias(libs.plugins.mavenPublishing)
+//    alias(libs.plugins.mavenPublishing)
     `java-gradle-plugin`
     id("io.github.kochkaev.kotlin.uniontypes.build.maven.info")
     id("io.github.kochkaev.kotlin.uniontypes.build.gradlePluginGen.plugin")
